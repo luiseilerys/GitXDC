@@ -15,11 +15,12 @@
         </svg>
         <span>GitXDC</span>
       </div>
-      <span class="repo-name" id="repo-name" title="Repositorio local">local/repo</span>
+      <span class="repo-name" id="repo-name" title="Repositorio">local/repo</span>
+      <span class="access-badge" id="access-badge" title="">…</span>
       <div class="spacer"></div>
       <span class="status" id="status">cargando…</span>
       <button type="button" id="btn-sync" title="Sync">Sync</button>
-      <button type="button" id="btn-commit" class="primary" title="Commit">Commit</button>
+      <button type="button" id="btn-commit" class="primary write-only" title="Commit (solo owner)">Commit</button>
       <button type="button" id="btn-export" title="Export">Export</button>
     </header>
 
@@ -36,9 +37,9 @@
           <div class="sidebar-header">
             <div class="sidebar-title">Archivos</div>
             <div class="sidebar-actions">
-              <button type="button" id="btn-new-file" title="Nuevo archivo">+</button>
-              <button type="button" id="btn-import" title="Importar">↑</button>
-              <button type="button" id="btn-reset-repo" title="Reiniciar repo">↺</button>
+              <button type="button" id="btn-new-file" class="write-only" title="Nuevo archivo (solo owner)">+</button>
+              <button type="button" id="btn-import" class="write-only" title="Importar (solo owner)">↑</button>
+              <button type="button" id="btn-reset-repo" class="write-only" title="Reiniciar (solo owner)">↺</button>
             </div>
           </div>
           <input type="file" id="file-import" multiple style="display:none" />
@@ -49,7 +50,8 @@
         <div class="editor-area">
           <div class="editor-toolbar">
             <span class="path" id="editor-path">—</span>
-            <button type="button" id="btn-save" disabled>Guardar</button>
+            <span class="ro-hint" id="ro-hint" style="display:none">Solo lectura</span>
+            <button type="button" id="btn-save" class="write-only" disabled>Guardar</button>
           </div>
           <div id="editor-container"></div>
         </div>
@@ -59,7 +61,7 @@
         <div class="list-panel" id="issues-list">
           <div class="list-header">
             <h2>Issues</h2>
-            <button type="button" id="btn-new-issue">Nuevo Issue</button>
+            <button type="button" id="btn-new-issue" title="Cualquiera puede abrir issues">Nuevo Issue</button>
           </div>
           <div id="issues-container"></div>
         </div>
@@ -70,7 +72,7 @@
         <div class="list-panel" id="prs-list">
           <div class="list-header">
             <h2>Pull Requests</h2>
-            <button type="button" id="btn-new-pr">Nuevo PR</button>
+            <button type="button" id="btn-new-pr" title="Proponer cambios">Nuevo PR</button>
           </div>
           <div id="prs-container"></div>
         </div>
@@ -92,7 +94,6 @@
     </div>
   </div>
 
-  <!-- Polyfill solo si el host no inyectó webxdc (navegador local) -->
   <script>
     if (!window.webxdc) {
       document.write('<script src="webxdc.js"><\/script>');
