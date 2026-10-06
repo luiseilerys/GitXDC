@@ -7,13 +7,14 @@ OUT="GitXDC.xdc"
 TMPDIR=$(mktemp -d)
 
 # Ensamblar app.js desde partes
-if [[ -f app-part1.js && -f app-part2.js ]]; then
-  echo "==> Ensamblando app.js desde app-part1.js + app-part2.js…"
+if [[ -f app-part1.js && -f app-part2a.js && -f app-part2b.js ]]; then
+  echo "==> Ensamblando app.js desde app-part1 + part2a + part2b…"
+  cat app-part1.js app-part2a.js app-part2b.js > app.js
+elif [[ -f app-part1.js && -f app-part2.js ]]; then
+  echo "==> Ensamblando app.js desde app-part1 + app-part2…"
   cat app-part1.js app-part2.js > app.js
-fi
-
-if [[ ! -f app.js ]]; then
-  echo "ERROR: falta app.js (o app-part1.js + app-part2.js)"
+elif [[ ! -f app.js ]]; then
+  echo "ERROR: falta app.js (o partes)"
   exit 1
 fi
 
