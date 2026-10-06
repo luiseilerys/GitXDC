@@ -1,22 +1,21 @@
 /**
- * ui.js — Modales e importación de archivos para GitXDC
- * No usa prompt()/confirm() (bloqueados en webxdc).
+ * ui.js — Modales GitXDC (sin prompt). Respeta modo solo lectura.
  */
 (function () {
   "use strict";
 
   function openModal(title, bodyHtml, buttons) {
-    const overlay = document.getElementById("modal");
+    var overlay = document.getElementById("modal");
     if (!overlay) {
-      console.error("Modal #modal no encontrado en el DOM");
+      console.error("Modal #modal no encontrado");
       return;
     }
     document.getElementById("modal-title").textContent = title;
     document.getElementById("modal-body").innerHTML = bodyHtml;
-    const actions = document.getElementById("modal-actions");
+    var actions = document.getElementById("modal-actions");
     actions.innerHTML = "";
     (buttons || []).forEach(function (b) {
-      const btn = document.createElement("button");
+      var btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = b.label;
       if (b.primary) btn.className = "primary";
@@ -28,7 +27,7 @@
       actions.appendChild(btn);
     });
     overlay.style.display = "flex";
-    const closeBtn = document.getElementById("modal-close");
+    var closeBtn = document.getElementById("modal-close");
     if (closeBtn) closeBtn.onclick = closeModal;
     overlay.onclick = function (e) {
       if (e.target === overlay) closeModal();
@@ -36,8 +35,20 @@
   }
 
   function closeModal() {
-    const overlay = document.getElementById("modal");
+    var overlay = document.getElementById("modal");
     if (overlay) overlay.style.display = "none";
+  }
+
+  function denyGuest(app) {
+    var owner = app.getOwner ? app.getOwner() : {};
+    openModal(
+      "Solo lectura",
+      "<p>Este repo pertenece a <strong>" +
+        (owner.name || owner.addr || "otro usuario") +
+        "</strong>.</p>" +
+        "<p>Puedes <em>ver</em> el código, abrir <em>issues</em> y proponer <em>PRs</em> — como un repo público en GitHub.</p>",
+      [{ label: "Entendido", primary: true }]
+    );
   }
 
   function wire(app) {
@@ -50,8 +61,18 @@
       return document.getElementById(id);
     }
 
+    function requireWrite(fn) {
+      return function () {
+        if (app.canWrite && !app.canWrite()) {
+          denyGuest(app);
+          return;
+        }
+        return fn.apply(null, arguments);
+      };
+    }
+
     if (el("btn-new-file")) {
-      el("btn-new-file").onclick = function () {
+      el("btn-new-file").onclick = requireWrite(function () {
         openModal(
           "Nuevo archivo",
           '<div class="form-row"><label>Ruta (ej. src/app.js)</label>' +
@@ -64,8 +85,8 @@
               label: "Crear",
               primary: true,
               onClick: async function () {
-                const name = (el("modal-filepath").value || "").trim();
-                const content = el("modal-filecontent").value || "";
+                var name = (el("modal-filepath").value || "").trim();
+                var content = el("modal-filecontent").value || "";
                 if (!name) return;
                 await app.createFileAt(name, content);
               }
@@ -73,14 +94,14 @@
           ]
         );
         setTimeout(function () {
-          const i = el("modal-filepath");
+          var i = el("modal-filepath");
           if (i) i.focus();
         }, 30);
-      };
+      });
     }
 
     if (el("btn-commit")) {
-      el("btn-commit").onclick = function () {
+      el("btn-commit").onclick = requireWrite(function () {
         openModal(
           "Crear commit",
           '<div class="form-row"><label>Mensaje</label>' +
@@ -91,31 +112,36 @@
               label: "Commit",
               primary: true,
               onClick: async function () {
-                const msg = (el("modal-commit-msg").value || "").trim() || "Update";
+                var msg = (el("modal-commit-msg").value || "").trim() || "Update";
                 await app.doCommit(msg);
               }
             }
           ]
         );
-      };
+      });
     }
 
     if (el("btn-import") && el("file-import")) {
-      el("btn-import").onclick = function () {
+      el("btn-import").onclick = requireWrite(function () {
         el("file-import").click();
-      };
+      });
       el("file-import").onchange = function () {
+        if (app.canWrite && !app.canWrite()) {
+          denyGuest(app);
+          el("file-import").value = "";
+          return;
+        }
         app.importFiles(el("file-import").files);
         el("file-import").value = "";
       };
     }
 
     if (el("btn-reset-repo")) {
-      el("btn-reset-repo").onclick = function () {
+      el("btn-reset-repo").onclick = requireWrite(function () {
         openModal(
           "Reiniciar repositorio",
           '<p style="color:var(--text-muted);margin-bottom:12px">' +
-            "Se recrea el repo local (IndexedDB) con un README nuevo. No se puede deshacer." +
+            "Se recrea el repo local. Solo el owner puede hacerlo." +
             "</p>",
           [
             { label: "Cancelar" },
@@ -128,9 +154,10 @@
             }
           ]
         );
-      };
+      });
     }
 
+    // Issues y PRs: cualquiera (como GitHub público)
     if (el("btn-new-issue")) {
       el("btn-new-issue").onclick = function () {
         openModal(
@@ -143,7 +170,7 @@
               label: "Crear",
               primary: true,
               onClick: function () {
-                const title = (el("modal-issue-title").value || "").trim();
+                var title = (el("modal-issue-title").value || "").trim();
                 if (!title) return;
                 app.createIssue(title, el("modal-issue-body").value || "");
               }
@@ -167,7 +194,7 @@
               label: "Crear",
               primary: true,
               onClick: function () {
-                const title = (el("modal-pr-title").value || "").trim();
+                var title = (el("modal-pr-title").value || "").trim();
                 if (!title) return;
                 app.createPR(
                   title,
