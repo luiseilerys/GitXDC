@@ -8,6 +8,7 @@ on:
       - "**.js"
       - "**.html"
       - "**.css"
+      - "**.txt"
       - "manifest.toml"
       - "vendor.sh"
       - "build.sh"
@@ -41,7 +42,7 @@ jobs:
         run: |
           ls -lh GitXDC.xdc
           file GitXDC.xdc || true
-          unzip -l GitXDC.xdc | head -30
+          unzip -l GitXDC.xdc | head -40
 
       - name: Upload GitXDC.xdc
         uses: actions/upload-artifact@v4
