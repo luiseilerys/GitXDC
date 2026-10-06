@@ -43,7 +43,7 @@ html, body {
 header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   height: var(--header-h);
   padding: 0 16px;
   background: var(--bg-secondary);
@@ -71,6 +71,39 @@ header .repo-name {
   font-weight: 600;
   font-family: var(--font-mono);
   font-size: 13px;
+}
+
+.access-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  white-space: nowrap;
+}
+
+.access-badge.owner {
+  color: #3fb950;
+  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(63, 185, 80, 0.12);
+}
+
+.access-badge.guest {
+  color: var(--warning);
+  border-color: rgba(210, 153, 34, 0.45);
+  background: rgba(210, 153, 34, 0.12);
+}
+
+.ro-hint {
+  font-size: 11px;
+  color: var(--warning);
+  font-weight: 600;
+}
+
+body.is-guest .write-only {
+  display: none !important;
 }
 
 header .spacer { flex: 1; }
