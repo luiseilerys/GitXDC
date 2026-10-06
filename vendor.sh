@@ -2,6 +2,8 @@
 # vendor.sh — Descarga y empaqueta dependencias con esbuild (versiones fijadas)
 # Sin CDN en runtime. Todo queda en vendor/
 # Polyfills de builtins de Node vía --alias (buffer, path, stream, process…)
+# IMPORTANTE: entry points y shims deben estar en el directorio del proyecto
+# (no en /tmp) para que esbuild resuelva node_modules correctamente.
 
 set -euo pipefail
 
@@ -40,8 +42,14 @@ EOF
 
 npm install
 
-# Shim para inyectar Buffer y process como globals en el bundle
-cat > /tmp/node-shims.js << 'SHIMEOF'
+echo "==> Verificando paquetes instalados…"
+ls node_modules/codemirror/package.json
+ls node_modules/@codemirror/state/package.json
+ls node_modules/isomorphic-git/package.json
+ls node_modules/esbuild/package.json
+
+# Shim para inyectar Buffer y process como globals (DEBE estar en el cwd del proyecto)
+cat > node-shims.js << 'SHIMEOF'
 export { Buffer } from "buffer";
 import process from "process";
 export { process };
@@ -57,7 +65,7 @@ POLYFILL_FLAGS=(
   --alias:process=process/browser
   --alias:readable-stream=readable-stream
   --define:global=globalThis
-  --inject:/tmp/node-shims.js
+  --inject:./node-shims.js
 )
 
 echo "==> Bundling isomorphic-git…"
@@ -90,7 +98,8 @@ npx esbuild node_modules/yjs/src/index.js \
   --target=es2020
 
 echo "==> Bundling CodeMirror 6 + lenguajes + tema…"
-cat > /tmp/cm-entry.js << 'CMEOF'
+# Entry en el directorio del proyecto (no /tmp) para resolver node_modules
+cat > cm-entry.js << 'CMEOF'
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -113,7 +122,7 @@ window.CodeMirrorBundle = {
 };
 CMEOF
 
-npx esbuild /tmp/cm-entry.js \
+npx esbuild ./cm-entry.js \
   --bundle \
   --format=iife \
   --outfile="$VENDOR_DIR/codemirror.js" \
@@ -121,7 +130,7 @@ npx esbuild /tmp/cm-entry.js \
   --target=es2020
 
 echo "==> Limpiando…"
-rm -rf node_modules package.json package-lock.json /tmp/cm-entry.js /tmp/node-shims.js
+rm -rf node_modules package.json package-lock.json cm-entry.js node-shims.js
 
 echo "==> Listo. Bundles en $VENDOR_DIR/:"
 ls -lh "$VENDOR_DIR/"
