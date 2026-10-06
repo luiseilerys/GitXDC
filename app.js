@@ -1,5 +1,5 @@
 /**
- * app.js — Lógica principal de GitXDC (compacto, API para ui.js)
+ * app.js — GitXDC core + API para ui.js
  */
 (function () {
   "use strict";
@@ -10,48 +10,71 @@
     if (mod.default) return mod.default;
     return mod;
   }
-  const git = resolveExport(window.git);
-  const Y = resolveExport(window.Y);
-  const LightningFS = resolveExport(window.LightningFS || window.lightningFS);
 
-  let fs = null, pfs = null, dir = "/repo", currentBranch = "main", currentFile = null, dirty = false;
-  let issues = [], prs = [], ydoc = null, yrefs = null, realtime = null, myAddr = "", myName = "";
+  // Leer globals DESPUÉS de que carguen los scripts (boot, no al parsear)
+  var git = null;
+  var Y = null;
+  var LightningFS = null;
+
+  var fs = null, pfs = null, dir = "/repo", currentBranch = "main";
+  var currentFile = null, dirty = false;
+  var issues = [], prs = [], ydoc = null, yrefs = null, realtime = null;
+  var myAddr = "", myName = "";
 
   function log(msg, level) {
     level = level || "info";
-    const el = document.getElementById("log-container");
-    if (!el) return;
-    const entry = document.createElement("div");
-    entry.className = "log-entry";
-    entry.innerHTML = '<span class="time">' + new Date().toLocaleTimeString() +
-      '</span><span class="level-' + level + '">[' + level + ']</span> ' + escapeHtml(msg);
-    el.appendChild(entry);
-    el.scrollTop = el.scrollHeight;
-    console.log("[GitXDC " + level + "]", msg);
+    try {
+      var el = document.getElementById("log-container");
+      if (el) {
+        var entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.innerHTML = '<span class="time">' + new Date().toLocaleTimeString() +
+          '</span><span class="level-' + level + '">[' + level + ']</span> ' + escapeHtml(String(msg));
+        el.appendChild(entry);
+        el.scrollTop = el.scrollHeight;
+      }
+    } catch (_) {}
+    try { console.log("[GitXDC " + level + "]", msg); } catch (_) {}
   }
 
   function escapeHtml(s) {
-    return String(s).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">").replace(/"/g, """);
+    return String(s)
+      .replace(/&/g, "&")
+      .replace(/</g, "<")
+      .replace(/>/g, ">")
+      .replace(/"/g, """);
   }
 
   function setStatus(text, online) {
-    const el = document.getElementById("status");
+    var el = document.getElementById("status");
     if (el) {
       el.textContent = text;
       el.className = "status" + (online ? " online" : "");
     }
   }
 
+  function diagnose() {
+    var missing = [];
+    if (!window.webxdc) missing.push("webxdc");
+    if (!resolveExport(window.git)) missing.push("git(vendor)");
+    if (!resolveExport(window.LightningFS || window.lightningFS)) missing.push("LightningFS(vendor)");
+    if (!resolveExport(window.Y)) missing.push("Yjs(vendor)");
+    if (!window.CodeMirrorBundle) missing.push("CodeMirror(vendor)");
+    if (!window.GitXDCEditor) missing.push("editor.js");
+    if (!window.GitXDCUI) missing.push("ui.js");
+    return missing;
+  }
+
   async function initFS() {
     fs = new LightningFS("gitxdc-fs");
     pfs = fs.promises;
     try { await pfs.mkdir(dir); } catch (e) {}
-    log("LightningFS listo");
+    log("FS ok");
   }
 
   async function initGit() {
     try {
-      const files = await pfs.readdir(dir + "/.git");
+      var files = await pfs.readdir(dir + "/.git");
       if (files && files.length) {
         log("Repo existente");
         document.getElementById("repo-name").textContent = "local/repo";
@@ -60,28 +83,33 @@
       }
     } catch (_) {}
     await git.init({ fs: fs, dir: dir, defaultBranch: "main" });
-    await pfs.writeFile(dir + "/README.md", "# GitXDC Repo\n\nRepositorio local.\n", "utf8");
+    await pfs.writeFile(dir + "/README.md", "# GitXDC\n\nRepo local.\n", "utf8");
     await git.add({ fs: fs, dir: dir, filepath: "README.md" });
-    const sha = await git.commit({
+    var sha = await git.commit({
       fs: fs, dir: dir, message: "Commit inicial",
       author: { name: myName || "GitXDC", email: myAddr || "gitxdc@local" }
     });
-    log("Repo nuevo " + sha.slice(0, 7));
+    log("Repo nuevo " + String(sha).slice(0, 7));
     document.getElementById("repo-name").textContent = "local/repo";
     await refreshTree();
   }
 
   function initYjs() {
+    if (!Y) return;
     ydoc = new Y.Doc();
     yrefs = ydoc.getMap("refs");
   }
 
   function sendAppUpdate(payload, info) {
-    window.webxdc.sendUpdate({ payload: payload }, info || "");
+    try {
+      if (window.webxdc && window.webxdc.sendUpdate) {
+        window.webxdc.sendUpdate({ payload: payload }, info || "");
+      }
+    } catch (e) { log("sendUpdate: " + e.message, "warn"); }
   }
 
   function handleAppUpdate(update) {
-    var p = update.payload;
+    var p = update && update.payload;
     if (!p || typeof p !== "object") return;
     if (p.type === "ISSUE_CREATE") { issues.push(p.issue); renderIssues(); }
     else if (p.type === "PR_CREATE") { prs.push(p.pr); renderPRs(); }
@@ -111,8 +139,10 @@
       name = entries[i];
       if (name === ".git") continue;
       rel = path ? path + "/" + name : name;
-      st = await pfs.stat(dir + "/" + rel);
-      result.push({ name: name, path: rel, isDir: st.isDirectory() });
+      try {
+        st = await pfs.stat(dir + "/" + rel);
+        result.push({ name: name, path: rel, isDir: st.isDirectory() });
+      } catch (e) {}
     }
     result.sort(function (a, b) {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -123,6 +153,7 @@
 
   async function refreshTree() {
     var tree = document.getElementById("file-tree");
+    if (!tree) return;
     tree.innerHTML = "";
     var files = await listFiles();
     if (!files.length) {
@@ -146,7 +177,7 @@
       currentFile = path;
       document.getElementById("editor-path").textContent = path;
       document.getElementById("btn-save").disabled = true;
-      window.GitXDCEditor.setContent(content, path);
+      if (window.GitXDCEditor) window.GitXDCEditor.setContent(content, path);
       document.querySelectorAll(".tree-item").forEach(function (el) {
         el.classList.toggle("active", el.dataset.path === path);
       });
@@ -156,8 +187,9 @@
 
   async function saveFile() {
     if (!currentFile) return;
-    await pfs.writeFile(dir + "/" + currentFile, window.GitXDCEditor.getContent(), "utf8");
-    await git.add({ fs: fs, dir: dir, filepath: currentFile });
+    var content = window.GitXDCEditor ? window.GitXDCEditor.getContent() : "";
+    await pfs.writeFile(dir + "/" + currentFile, content, "utf8");
+    if (git) await git.add({ fs: fs, dir: dir, filepath: currentFile });
     dirty = false;
     document.getElementById("btn-save").disabled = true;
     log("Guardado: " + currentFile);
@@ -174,19 +206,20 @@
       }
     }
     await pfs.writeFile(dir + "/" + name, content, "utf8");
-    await git.add({ fs: fs, dir: dir, filepath: name });
+    if (git) await git.add({ fs: fs, dir: dir, filepath: name });
     await refreshTree();
     await openFile(name);
     log("Creado: " + name);
   }
 
   async function doCommit(message) {
+    if (!git) { log("git no disponible", "error"); return; }
     var sha = await git.commit({
       fs: fs, dir: dir, message: message || "Update",
       author: { name: myName || "GitXDC", email: myAddr || "gitxdc@local" }
     });
-    log("Commit " + sha.slice(0, 7) + " — " + message);
-    setStatus("commit " + sha.slice(0, 7));
+    log("Commit " + String(sha).slice(0, 7) + " — " + message);
+    setStatus("commit " + String(sha).slice(0, 7));
   }
 
   async function importFiles(fileList) {
@@ -198,7 +231,7 @@
         name = file.name.replace(/^.*[\\/]/, "");
         text = await file.text();
         await pfs.writeFile(dir + "/" + name, text, "utf8");
-        await git.add({ fs: fs, dir: dir, filepath: name });
+        if (git) await git.add({ fs: fs, dir: dir, filepath: name });
         n++;
         log("Importado: " + name);
       } catch (e) { log("Import: " + e.message, "error"); }
@@ -216,27 +249,29 @@
         try { await pfs.unlink(dir + "/" + name); } catch (e) {}
       }
     } catch (e) {}
-    await git.init({ fs: fs, dir: dir, defaultBranch: "main" });
-    await pfs.writeFile(dir + "/README.md", "# GitXDC Repo\n\nRepo reiniciado.\n", "utf8");
-    await git.add({ fs: fs, dir: dir, filepath: "README.md" });
-    var sha = await git.commit({
-      fs: fs, dir: dir, message: "Commit inicial",
-      author: { name: myName || "GitXDC", email: myAddr || "gitxdc@local" }
-    });
+    if (git) {
+      await git.init({ fs: fs, dir: dir, defaultBranch: "main" });
+      await pfs.writeFile(dir + "/README.md", "# GitXDC\n\nRepo reiniciado.\n", "utf8");
+      await git.add({ fs: fs, dir: dir, filepath: "README.md" });
+      var sha = await git.commit({
+        fs: fs, dir: dir, message: "Commit inicial",
+        author: { name: myName || "GitXDC", email: myAddr || "gitxdc@local" }
+      });
+      log("Repo reiniciado " + String(sha).slice(0, 7));
+    }
     currentFile = null;
     dirty = false;
-    document.getElementById("editor-path").textContent = "Selecciona un archivo";
+    document.getElementById("editor-path").textContent = "—";
     document.getElementById("btn-save").disabled = true;
     if (window.GitXDCEditor) window.GitXDCEditor.clear();
     document.getElementById("repo-name").textContent = "local/repo";
     await refreshTree();
-    log("Repo reiniciado " + sha.slice(0, 7));
     setStatus("repo nuevo", true);
   }
 
   function createIssue(title, body) {
     var issue = {
-      id: issues.length + 1, title: title, body: body || "", author: myName,
+      id: issues.length + 1, title: title, body: body || "", author: myName || "anon",
       state: "open", comments: [], created: new Date().toISOString()
     };
     issues.push(issue);
@@ -247,7 +282,7 @@
   function createPR(title, head, base, body) {
     var pr = {
       id: prs.length + 1, title: title, head: head || "feature", base: base || "main",
-      body: body || "", author: myName, state: "open", created: new Date().toISOString()
+      body: body || "", author: myName || "anon", state: "open", created: new Date().toISOString()
     };
     prs.push(pr);
     sendAppUpdate({ type: "PR_CREATE", pr: pr }, "PR: " + title);
@@ -256,15 +291,16 @@
 
   function renderIssues() {
     var container = document.getElementById("issues-container");
-    document.getElementById("badge-issues").textContent = issues.filter(function (i) { return i.state === "open"; }).length;
+    if (!container) return;
+    var badge = document.getElementById("badge-issues");
+    if (badge) badge.textContent = issues.filter(function (i) { return i.state === "open"; }).length;
     if (!issues.length) {
       container.innerHTML = '<div class="empty"><h3>No hay issues</h3></div>';
       return;
     }
     container.innerHTML = issues.map(function (i) {
       return '<div class="issue-card" data-id="' + i.id + '"><div class="title">' + escapeHtml(i.title) +
-        '</div><div class="meta"><span class="' + i.state + '">' + i.state +
-        '</span> · #' + i.id + ' · ' + escapeHtml(i.author) + '</div></div>';
+        '</div><div class="meta">#' + i.id + ' · ' + escapeHtml(i.author || "") + '</div></div>';
     }).join("");
     container.querySelectorAll(".issue-card").forEach(function (el) {
       el.addEventListener("click", function () { showIssueDetail(+el.dataset.id); });
@@ -278,35 +314,25 @@
     var detail = document.getElementById("issue-detail");
     detail.style.display = "block";
     detail.innerHTML = '<span class="back" id="back-issues">← Volver</span><h2>#' + issue.id + " " +
-      escapeHtml(issue.title) + '</h2><div class="body">' + escapeHtml(issue.body || "") +
-      '</div><div class="form-row"><label>Comentario</label><textarea id="issue-comment-text"></textarea></div>' +
-      '<div class="form-actions"><button class="primary" id="btn-add-comment">Comentar</button></div>';
+      escapeHtml(issue.title) + '</h2><div class="body">' + escapeHtml(issue.body || "") + "</div>";
     document.getElementById("back-issues").onclick = function () {
       detail.style.display = "none";
       document.getElementById("issues-list").style.display = "block";
-    };
-    document.getElementById("btn-add-comment").onclick = function () {
-      var text = document.getElementById("issue-comment-text").value.trim();
-      if (!text) return;
-      var comment = { author: myName, text: text, time: new Date().toISOString() };
-      issue.comments = issue.comments || [];
-      issue.comments.push(comment);
-      sendAppUpdate({ type: "ISSUE_COMMENT", issueId: issue.id, comment: comment }, "Comentario");
-      showIssueDetail(id);
     };
   }
 
   function renderPRs() {
     var container = document.getElementById("prs-container");
-    document.getElementById("badge-prs").textContent = prs.filter(function (p) { return p.state === "open"; }).length;
+    if (!container) return;
+    var badge = document.getElementById("badge-prs");
+    if (badge) badge.textContent = prs.filter(function (p) { return p.state === "open"; }).length;
     if (!prs.length) {
       container.innerHTML = '<div class="empty"><h3>No hay PRs</h3></div>';
       return;
     }
     container.innerHTML = prs.map(function (p) {
       return '<div class="pr-card" data-id="' + p.id + '"><div class="title">' + escapeHtml(p.title) +
-        '</div><div class="meta"><span class="' + p.state + '">' + p.state + '</span> · #' + p.id +
-        " " + escapeHtml(p.head) + " → " + escapeHtml(p.base) + "</div></div>";
+        '</div><div class="meta">#' + p.id + " " + escapeHtml(p.head) + " → " + escapeHtml(p.base) + "</div></div>";
     }).join("");
     container.querySelectorAll(".pr-card").forEach(function (el) {
       el.addEventListener("click", function () { showPRDetail(+el.dataset.id); });
@@ -320,34 +346,19 @@
     var detail = document.getElementById("pr-detail");
     detail.style.display = "block";
     detail.innerHTML = '<span class="back" id="back-prs">← Volver</span><h2>#' + pr.id + " " +
-      escapeHtml(pr.title) + '</h2><div class="body">' + escapeHtml(pr.body || "") + "</div>" +
-      (pr.state === "open"
-        ? '<div class="form-actions"><button class="primary" id="btn-merge-pr">Merge</button>' +
-          '<button class="danger" id="btn-close-pr">Cerrar</button></div>'
-        : "");
+      escapeHtml(pr.title) + '</h2><div class="body">' + escapeHtml(pr.body || "") + "</div>";
     document.getElementById("back-prs").onclick = function () {
       detail.style.display = "none";
       document.getElementById("prs-list").style.display = "block";
     };
-    var mb = document.getElementById("btn-merge-pr");
-    if (mb) mb.onclick = function () {
-      pr.state = "merged";
-      sendAppUpdate({ type: "PR_MERGE", prId: pr.id }, "Merged");
-      showPRDetail(id); renderPRs();
-    };
-    var cb = document.getElementById("btn-close-pr");
-    if (cb) cb.onclick = function () {
-      pr.state = "closed";
-      sendAppUpdate({ type: "PR_CLOSE", prId: pr.id }, "Closed");
-      showPRDetail(id); renderPRs();
-    };
   }
 
   async function doSync() {
-    setStatus("sincronizando…");
+    setStatus("sync…");
     try {
+      if (!git) throw new Error("sin git");
       var head = await git.resolveRef({ fs: fs, dir: dir, ref: "HEAD" });
-      log("HEAD " + head.slice(0, 7), "sync");
+      log("HEAD " + String(head).slice(0, 7), "sync");
       setStatus("sync ok", true);
     } catch (e) {
       log("Sync: " + e.message, "error");
@@ -359,12 +370,13 @@
     setStatus("export…");
     try {
       var files = await listFiles();
-      var parts = [], i, f;
+      var parts = [], i;
       for (i = 0; i < files.length; i++) {
-        f = files[i];
-        if (!f.isDir) parts.push(f.path);
+        if (!files[i].isDir) parts.push(files[i].path);
       }
-      await window.webxdc.sendToChat({ text: "GitXDC — archivos: " + parts.join(", ") });
+      if (window.webxdc && window.webxdc.sendToChat) {
+        await window.webxdc.sendToChat({ text: "GitXDC — " + parts.join(", ") });
+      }
       setStatus("exportado");
     } catch (e) {
       log("Export: " + e.message, "error");
@@ -378,75 +390,126 @@
         document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
         document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
         tab.classList.add("active");
-        document.getElementById("panel-" + tab.dataset.tab).classList.add("active");
+        var panel = document.getElementById("panel-" + tab.dataset.tab);
+        if (panel) panel.classList.add("active");
       });
     });
   }
 
+  function wireCoreButtons() {
+    var save = document.getElementById("btn-save");
+    if (save) save.onclick = function () { saveFile().catch(function (e) { log(e.message, "error"); }); };
+    var sync = document.getElementById("btn-sync");
+    if (sync) sync.onclick = function () { doSync(); };
+    var exp = document.getElementById("btn-export");
+    if (exp) exp.onclick = function () { exportXdc(); };
+  }
+
+  function wireAppApi() {
+    window.GitXDCApp = {
+      createFileAt: createFileAt,
+      doCommit: doCommit,
+      importFiles: importFiles,
+      resetRepo: resetRepo,
+      createIssue: createIssue,
+      createPR: createPR
+    };
+    if (window.GitXDCUI && window.GitXDCUI.wire) {
+      window.GitXDCUI.wire(window.GitXDCApp);
+      log("UI modales lista");
+    } else {
+      log("ui.js no cargado — usa Log para ver errores", "warn");
+    }
+  }
+
   async function boot() {
-    try {
-      if (!git) throw new Error("isomorphic-git no cargado");
-      if (!LightningFS) throw new Error("lightning-fs no cargado");
-      if (!Y) throw new Error("yjs no cargado");
-      if (!window.CodeMirrorBundle) throw new Error("CodeMirror no cargado");
-      if (!window.GitXDCEditor) throw new Error("editor.js no cargado");
-      if (!window.webxdc) throw new Error("webxdc no disponible");
+    setStatus("boot…");
+    log("Boot iniciando");
 
-      myAddr = window.webxdc.selfAddr;
-      myName = window.webxdc.selfName;
-      log("Usuario " + myName);
+    // Resolver vendors ahora
+    git = resolveExport(window.git);
+    Y = resolveExport(window.Y);
+    LightningFS = resolveExport(window.LightningFS || window.lightningFS);
 
-      window.webxdc.setUpdateListener(handleAppUpdate, 0);
-      try {
-        realtime = window.webxdc.joinRealtimeChannel();
-        log("Realtime ok");
-      } catch (e) { log("Sin realtime: " + e.message, "warn"); }
-
-      await initFS();
-      initYjs();
-      await initGit();
-
-      window.GitXDCEditor.init(document.getElementById("editor-container"));
-      window.GitXDCEditor.onChange(function () {
-        dirty = true;
-        document.getElementById("btn-save").disabled = false;
-      });
-
-      document.getElementById("btn-save").onclick = saveFile;
-      document.getElementById("btn-sync").onclick = doSync;
-      document.getElementById("btn-export").onclick = exportXdc;
-
+    var missing = diagnose();
+    if (missing.length) {
+      log("Faltan: " + missing.join(", "), "error");
+      setStatus("faltan: " + missing[0]);
+      // Aun así cablear tabs y UI básica
       setupTabs();
+      wireCoreButtons();
+      wireAppApi();
       renderIssues();
       renderPRs();
+      return;
+    }
 
-      window.GitXDCApp = {
-        createFileAt: createFileAt,
-        doCommit: doCommit,
-        importFiles: importFiles,
-        resetRepo: resetRepo,
-        createIssue: createIssue,
-        createPR: createPR
-      };
-      if (window.GitXDCUI && window.GitXDCUI.wire) {
-        window.GitXDCUI.wire(window.GitXDCApp);
-        log("UI modales lista");
-      } else {
-        log("ui.js no cargado", "warn");
+    try {
+      myAddr = (window.webxdc && window.webxdc.selfAddr) || "local";
+      myName = (window.webxdc && window.webxdc.selfName) || "User";
+      log("Usuario " + myName);
+      setStatus("webxdc ok");
+
+      if (window.webxdc.setUpdateListener) {
+        window.webxdc.setUpdateListener(handleAppUpdate, 0);
       }
+      try {
+        if (window.webxdc.joinRealtimeChannel) {
+          realtime = window.webxdc.joinRealtimeChannel();
+          log("Realtime ok");
+        }
+      } catch (e) { log("Realtime: " + e.message, "warn"); }
+
+      setStatus("fs…");
+      await initFS();
+
+      setStatus("yjs…");
+      try { initYjs(); } catch (e) { log("Yjs: " + e.message, "warn"); }
+
+      setStatus("git…");
+      await initGit();
+
+      setStatus("editor…");
+      try {
+        if (window.GitXDCEditor && document.getElementById("editor-container")) {
+          window.GitXDCEditor.init(document.getElementById("editor-container"));
+          window.GitXDCEditor.onChange(function () {
+            dirty = true;
+            var b = document.getElementById("btn-save");
+            if (b) b.disabled = false;
+          });
+        }
+      } catch (e) { log("Editor: " + e.message, "warn"); }
+
+      setupTabs();
+      wireCoreButtons();
+      wireAppApi();
+      renderIssues();
+      renderPRs();
 
       setStatus("listo", true);
       log("GitXDC listo");
     } catch (e) {
       console.error(e);
-      setStatus("error: " + (e.message || e));
-      try { log(String(e.stack || e), "error"); } catch (_) {}
+      setStatus("error: " + (e && e.message ? e.message : e));
+      log(String(e && e.stack ? e.stack : e), "error");
+      // Intentar UI mínima
+      try {
+        setupTabs();
+        wireCoreButtons();
+        wireAppApi();
+      } catch (_) {}
     }
   }
 
+  // Esperar a que el DOM y los scripts síncronos terminen
+  function start() {
+    // micro-delay por si algún script vendor aún no expuso globals
+    setTimeout(boot, 0);
+  }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
+    document.addEventListener("DOMContentLoaded", start);
   } else {
-    boot();
+    start();
   }
 })();
