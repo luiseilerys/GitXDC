@@ -7,7 +7,7 @@ OUT="GitXDC.xdc"
 TMPDIR=$(mktemp -d)
 
 echo "==> Copiando archivos al staging…"
-cp manifest.toml index.html style.css webxdc.js editor.js app.js "$TMPDIR/"
+cp manifest.toml index.html style.css webxdc.js editor.js ui.js app.js "$TMPDIR/"
 mkdir -p "$TMPDIR/vendor"
 cp vendor/*.js "$TMPDIR/vendor/" 2>/dev/null || {
   echo "ERROR: ejecuta primero ./vendor.sh"
@@ -15,7 +15,6 @@ cp vendor/*.js "$TMPDIR/vendor/" 2>/dev/null || {
 }
 
 echo "==> Creando $OUT…"
-# ZIP con Deflate, sin directorios extra
 (cd "$TMPDIR" && zip -9 -r - .) > "$OUT"
 
 rm -rf "$TMPDIR"
