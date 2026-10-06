@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # vendor.sh — Descarga y empaqueta dependencias con esbuild (versiones fijadas)
 # Sin CDN en runtime. Todo queda en vendor/
-# Polyfills de builtins de Node para isomorphic-git en el navegador.
+# Polyfills de builtins de Node vía --alias (buffer, path, stream, process…)
 
 set -euo pipefail
 
@@ -13,7 +13,6 @@ cat > package.json << 'EOF'
 {
   "name": "gitxdc-vendor",
   "private": true,
-  "type": "module",
   "dependencies": {
     "isomorphic-git": "1.27.1",
     "@isomorphic-git/lightning-fs": "4.6.0",
@@ -28,78 +27,70 @@ cat > package.json << 'EOF'
     "@codemirror/view": "6.28.0",
     "@codemirror/state": "6.4.1",
     "esbuild": "0.23.0",
-    "esbuild-plugin-polyfill-node": "0.3.0",
     "buffer": "6.0.3",
     "path-browserify": "1.0.1",
     "events": "3.3.0",
     "stream-browserify": "3.0.0",
     "process": "0.11.10",
-    "util": "0.12.5"
+    "util": "0.12.5",
+    "readable-stream": "3.6.2"
   }
 }
 EOF
 
-npm install --silent
+npm install
 
-echo "==> Creando script de build esbuild con polyfills…"
-cat > /tmp/vendor-build.mjs << 'BUILDEOF'
-import * as esbuild from "esbuild";
-import { polyfillNode } from "esbuild-plugin-polyfill-node";
-import { writeFileSync } from "fs";
+# Shim para inyectar Buffer y process como globals en el bundle
+cat > /tmp/node-shims.js << 'SHIMEOF'
+export { Buffer } from "buffer";
+import process from "process";
+export { process };
+SHIMEOF
 
-const common = {
-  bundle: true,
-  format: "iife",
-  platform: "browser",
-  target: "es2020",
-  logLevel: "info",
-};
+# Flags comunes para polyfills de Node en el navegador
+POLYFILL_FLAGS=(
+  --alias:buffer=buffer
+  --alias:path=path-browserify
+  --alias:events=events
+  --alias:stream=stream-browserify
+  --alias:util=util
+  --alias:process=process/browser
+  --alias:readable-stream=readable-stream
+  --define:global=globalThis
+  --inject:/tmp/node-shims.js
+)
 
-// isomorphic-git necesita polyfills de Node (buffer, path, stream, process…)
-await esbuild.build({
-  ...common,
-  entryPoints: ["node_modules/isomorphic-git/index.js"],
-  outfile: "vendor/isomorphic-git.js",
-  globalName: "git",
-  plugins: [
-    polyfillNode({
-      globals: {
-        process: true,
-        Buffer: true,
-      },
-    }),
-  ],
-  define: {
-    global: "globalThis",
-  },
-});
+echo "==> Bundling isomorphic-git…"
+npx esbuild node_modules/isomorphic-git/index.js \
+  --bundle \
+  --format=iife \
+  --global-name=git \
+  --outfile="$VENDOR_DIR/isomorphic-git.js" \
+  --platform=browser \
+  --target=es2020 \
+  "${POLYFILL_FLAGS[@]}"
 
-// lightning-fs
-await esbuild.build({
-  ...common,
-  entryPoints: ["node_modules/@isomorphic-git/lightning-fs/src/index.js"],
-  outfile: "vendor/lightning-fs.js",
-  globalName: "LightningFS",
-  plugins: [
-    polyfillNode({
-      globals: { process: true, Buffer: true },
-    }),
-  ],
-  define: { global: "globalThis" },
-});
+echo "==> Bundling lightning-fs…"
+npx esbuild node_modules/@isomorphic-git/lightning-fs/src/index.js \
+  --bundle \
+  --format=iife \
+  --global-name=LightningFS \
+  --outfile="$VENDOR_DIR/lightning-fs.js" \
+  --platform=browser \
+  --target=es2020 \
+  "${POLYFILL_FLAGS[@]}"
 
-// yjs (sin polyfills Node)
-await esbuild.build({
-  ...common,
-  entryPoints: ["node_modules/yjs/src/index.js"],
-  outfile: "vendor/yjs.js",
-  globalName: "Y",
-});
+echo "==> Bundling yjs…"
+npx esbuild node_modules/yjs/src/index.js \
+  --bundle \
+  --format=iife \
+  --global-name=Y \
+  --outfile="$VENDOR_DIR/yjs.js" \
+  --platform=browser \
+  --target=es2020
 
-// CodeMirror 6 + lenguajes + tema
-writeFileSync(
-  "/tmp/cm-entry.js",
-  `
+echo "==> Bundling CodeMirror 6 + lenguajes + tema…"
+cat > /tmp/cm-entry.js << 'CMEOF'
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -120,23 +111,17 @@ window.CodeMirrorBundle = {
   html,
   css
 };
-`
-);
+CMEOF
 
-await esbuild.build({
-  ...common,
-  entryPoints: ["/tmp/cm-entry.js"],
-  outfile: "vendor/codemirror.js",
-});
-
-console.log("Bundles generados correctamente.");
-BUILDEOF
-
-echo "==> Ejecutando esbuild…"
-node /tmp/vendor-build.mjs
+npx esbuild /tmp/cm-entry.js \
+  --bundle \
+  --format=iife \
+  --outfile="$VENDOR_DIR/codemirror.js" \
+  --platform=browser \
+  --target=es2020
 
 echo "==> Limpiando…"
-rm -rf node_modules package.json package-lock.json /tmp/cm-entry.js /tmp/vendor-build.mjs
+rm -rf node_modules package.json package-lock.json /tmp/cm-entry.js /tmp/node-shims.js
 
 echo "==> Listo. Bundles en $VENDOR_DIR/:"
 ls -lh "$VENDOR_DIR/"
