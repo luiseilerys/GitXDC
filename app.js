@@ -1,1 +1,4 @@
-PLACEHOLDER_WILL_FAIL
+/**
+ * app.js — RESTORED PLACEHOLDER - use pr-app patch
+ */
+(function(){ console.error('app incomplete'); })();
