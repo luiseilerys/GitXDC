@@ -6,6 +6,17 @@ set -euo pipefail
 OUT="GitXDC.xdc"
 TMPDIR=$(mktemp -d)
 
+# Ensamblar app.js desde partes (archivo completo grande)
+if [[ -f app-part1.js && -f app-part2.js ]]; then
+  echo "==> Ensamblando app.js desde app-part1.js + app-part2.js…"
+  cat app-part1.js app-part2.js > app.js
+fi
+
+if [[ ! -f app.js ]]; then
+  echo "ERROR: falta app.js (o app-part1.js + app-part2.js)"
+  exit 1
+fi
+
 echo "==> Copiando archivos al staging…"
 cp manifest.toml index.html style.css webxdc.js editor.js ui.js app.js "$TMPDIR/"
 mkdir -p "$TMPDIR/vendor"
