@@ -48,10 +48,10 @@
 
   function escapeHtml(s) {
     return String(s)
-      .replace(/&/g, "&")
-      .replace(/</g, "<")
-      .replace(/>/g, ">")
-      .replace(/"/g, """);
+      .replace(/&/g, "&" + "amp;")
+      .replace(/</g, "&" + "lt;")
+      .replace(/>/g, "&" + "gt;")
+      .replace(/"/g, "&" + "quot;");
   }
 
   function setStatus(text, online) {
@@ -160,11 +160,7 @@
     } catch (e) {
       return [];
     }
-    var result = [],
-      i,
-      name,
-      rel,
-      st;
+    var result = [], i, name, rel, st;
     for (i = 0; i < entries.length; i++) {
       name = entries[i];
       if (name === ".git") continue;
@@ -197,7 +193,7 @@
       item.dataset.path = f.path;
       item.innerHTML =
         '<span class="icon">' +
-        (f.isDir ? "📁" : "📄") +
+        (f.isDir ? "\uD83D\uDCC1" : "\uD83D\uDCC4") +
         "</span> " +
         escapeHtml(f.name);
       item.addEventListener("click", function () {
@@ -250,9 +246,7 @@
       return;
     }
     content = content || "";
-    var parts = name.split("/"),
-      i,
-      acc;
+    var parts = name.split("/"), i, acc;
     if (parts.length > 1) {
       acc = dir;
       for (i = 0; i < parts.length - 1; i++) {
@@ -294,11 +288,7 @@
 
   async function importFiles(fileList) {
     if (!pfs || !fileList || !fileList.length) return;
-    var n = 0,
-      i,
-      file,
-      name,
-      text;
+    var n = 0, i, file, name, text;
     for (i = 0; i < fileList.length; i++) {
       file = fileList[i];
       try {
@@ -323,9 +313,7 @@
   async function resetRepo() {
     if (!pfs) return;
     try {
-      var names = await pfs.readdir(dir),
-        i,
-        name;
+      var names = await pfs.readdir(dir), i, name;
       for (i = 0; i < names.length; i++) {
         name = names[i];
         if (name === ".git") continue;
@@ -352,7 +340,7 @@
     }
     currentFile = null;
     dirty = false;
-    document.getElementById("editor-path").textContent = "—";
+    document.getElementById("editor-path").textContent = "-";
     document.getElementById("btn-save").disabled = true;
     if (window.GitXDCEditor) window.GitXDCEditor.clear();
     document.getElementById("repo-name").textContent = "local/repo";
@@ -452,7 +440,7 @@
   }
 
   async function doSync() {
-    setStatus("sync…");
+    setStatus("sync...");
     try {
       if (!git) throw new Error("sin git");
       var head = await git.resolveRef({ fs: fs, dir: dir, ref: "HEAD" });
@@ -465,11 +453,10 @@
   }
 
   async function exportXdc() {
-    setStatus("export…");
+    setStatus("export...");
     try {
       var files = await listFiles();
-      var parts = [],
-        i;
+      var parts = [], i;
       for (i = 0; i < files.length; i++) {
         if (!files[i].isDir) parts.push(files[i].path);
       }
@@ -549,10 +536,9 @@
   }
 
   async function boot() {
-    setStatus("boot…");
+    setStatus("boot...");
     log("Boot iniciando");
 
-    // 1) UI básica YA (aunque fallen vendors)
     try {
       finishUi();
     } catch (e) {
@@ -599,21 +585,20 @@
         return;
       }
 
-      setStatus("fs…");
+      setStatus("fs...");
       await withTimeout(initFS(), 8000, "initFS");
 
-      setStatus("git…");
+      setStatus("git...");
       try {
         await withTimeout(initGit(), 12000, "initGit");
       } catch (e) {
-        log("initGit falló: " + e.message, "error");
-        // FS sigue usable sin git
+        log("initGit fallo: " + e.message, "error");
         try {
           await refreshTree();
         } catch (_) {}
       }
 
-      setStatus("editor…");
+      setStatus("editor...");
       try {
         if (window.GitXDCEditor && document.getElementById("editor-container")) {
           window.GitXDCEditor.init(document.getElementById("editor-container"));
@@ -637,7 +622,6 @@
   }
 
   function start() {
-    // Dar tiempo a scripts vendor síncronos + un frame
     setTimeout(boot, 50);
   }
   if (document.readyState === "loading") {
