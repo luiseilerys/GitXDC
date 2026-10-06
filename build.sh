@@ -6,20 +6,24 @@ set -euo pipefail
 OUT="GitXDC.xdc"
 TMPDIR=$(mktemp -d)
 
-# Ensamblar app.js desde partes
-if [[ -f app-part1.js && -f app-part2a.js && -f app-part2b.js ]]; then
-  echo "==> Ensamblando app.js desde app-part1 + part2a + part2b…"
-  cat app-part1.js app-part2a.js app-part2b.js > app.js
+echo "==> Copiando archivos al staging…"
+cp manifest.toml index.html style.css webxdc.js editor.js ui.js "$TMPDIR/"
+
+# Prefer base64 loader + chunks
+if ls app-b64-*.txt >/dev/null 2>&1; then
+  echo "==> Usando app.js (loader) + app-b64-*.txt"
+  cp app.js "$TMPDIR/"
+  cp app-b64-*.txt "$TMPDIR/"
 elif [[ -f app-part1.js && -f app-part2.js ]]; then
-  echo "==> Ensamblando app.js desde app-part1 + app-part2…"
-  cat app-part1.js app-part2.js > app.js
-elif [[ ! -f app.js ]]; then
-  echo "ERROR: falta app.js (o partes)"
+  echo "==> Ensamblando app.js desde partes…"
+  cat app-part1.js app-part2.js > "$TMPDIR/app.js"
+elif [[ -f app.js ]]; then
+  cp app.js "$TMPDIR/"
+else
+  echo "ERROR: falta app"
   exit 1
 fi
 
-echo "==> Copiando archivos al staging…"
-cp manifest.toml index.html style.css webxdc.js editor.js ui.js app.js "$TMPDIR/"
 mkdir -p "$TMPDIR/vendor"
 cp vendor/*.js "$TMPDIR/vendor/" 2>/dev/null || {
   echo "ERROR: ejecuta primero ./vendor.sh"
@@ -28,7 +32,5 @@ cp vendor/*.js "$TMPDIR/vendor/" 2>/dev/null || {
 
 echo "==> Creando $OUT…"
 (cd "$TMPDIR" && zip -9 -r - .) > "$OUT"
-
 rm -rf "$TMPDIR"
-
 echo "==> Generado: $OUT ($(du -h "$OUT" | cut -f1))"
