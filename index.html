@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GitXDC</title>
   <link rel="stylesheet" href="style.css" />
-  <!-- webxdc.js es inyectado por el cliente; el polyfill se usa solo en desarrollo -->
   <script src="webxdc.js"></script>
 </head>
 <body>
@@ -17,12 +16,12 @@
         </svg>
         <span>GitXDC</span>
       </div>
-      <span class="repo-name" id="repo-name">—</span>
+      <span class="repo-name" id="repo-name" title="Repositorio local (IndexedDB)">local/repo</span>
       <div class="spacer"></div>
       <span class="status" id="status">inicializando…</span>
-      <button id="btn-sync" title="Sincronizar packfiles P2P">Sync</button>
-      <button id="btn-commit" class="primary" title="Crear commit">Commit</button>
-      <button id="btn-export" title="Exportar .xdc">Export</button>
+      <button type="button" id="btn-sync" title="Sincronizar packfiles P2P">Sync</button>
+      <button type="button" id="btn-commit" class="primary" title="Crear commit">Commit</button>
+      <button type="button" id="btn-export" title="Exportar .xdc">Export</button>
     </header>
 
     <nav class="tabs">
@@ -33,58 +32,72 @@
     </nav>
 
     <main>
-      <!-- Panel Código -->
       <div class="panel active" id="panel-code">
-        <div class="file-tree" id="file-tree">
-          <div class="empty"><h3>Sin repositorio</h3><p>Crea o clona un repo</p></div>
+        <div class="sidebar">
+          <div class="sidebar-header">
+            <div class="sidebar-title">Archivos</div>
+            <div class="sidebar-actions">
+              <button type="button" id="btn-new-file" title="Nuevo archivo">+</button>
+              <button type="button" id="btn-import" title="Importar archivos">↑</button>
+              <button type="button" id="btn-reset-repo" title="Reiniciar repositorio">↺</button>
+            </div>
+          </div>
+          <input type="file" id="file-import" multiple style="display:none" />
+          <div class="file-tree" id="file-tree">
+            <div class="empty"><h3>Sin archivos</h3><p>Pulsa + o Importar</p></div>
+          </div>
         </div>
         <div class="editor-area">
           <div class="editor-toolbar">
             <span class="path" id="editor-path">Selecciona un archivo</span>
-            <button id="btn-save" disabled>Guardar</button>
-            <button id="btn-new-file">Nuevo</button>
+            <button type="button" id="btn-save" disabled>Guardar</button>
           </div>
           <div id="editor-container"></div>
         </div>
       </div>
 
-      <!-- Panel Issues -->
       <div class="panel" id="panel-issues">
         <div class="list-panel" id="issues-list">
           <div class="list-header">
             <h2>Issues</h2>
-            <button id="btn-new-issue">Nuevo Issue</button>
+            <button type="button" id="btn-new-issue">Nuevo Issue</button>
           </div>
           <div id="issues-container"></div>
         </div>
         <div class="detail-view" id="issue-detail" style="display:none"></div>
       </div>
 
-      <!-- Panel PRs -->
       <div class="panel" id="panel-prs">
         <div class="list-panel" id="prs-list">
           <div class="list-header">
             <h2>Pull Requests</h2>
-            <button id="btn-new-pr">Nuevo PR</button>
+            <button type="button" id="btn-new-pr">Nuevo PR</button>
           </div>
           <div id="prs-container"></div>
         </div>
         <div class="detail-view" id="pr-detail" style="display:none"></div>
       </div>
 
-      <!-- Panel Log -->
       <div class="panel" id="panel-log">
         <div id="log-container"></div>
       </div>
     </main>
   </div>
 
-  <!-- Vendor bundles (generados por vendor.sh) -->
+  <!-- Modal genérico -->
+  <div class="modal-overlay" id="modal" style="display:none">
+    <div class="modal" role="dialog" aria-modal="true">
+      <span class="close" id="modal-close" title="Cerrar">×</span>
+      <h3 id="modal-title">Título</h3>
+      <div id="modal-body"></div>
+      <div class="form-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
   <script src="vendor/isomorphic-git.js"></script>
   <script src="vendor/lightning-fs.js"></script>
   <script src="vendor/yjs.js"></script>
   <script src="vendor/codemirror.js"></script>
-  <!-- App -->
   <script src="editor.js"></script>
   <script src="app.js"></script>
 </body>
