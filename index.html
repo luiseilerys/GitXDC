@@ -15,74 +15,101 @@
         </svg>
         <span>GitXDC</span>
       </div>
-      <span class="repo-name" id="repo-name" title="Repositorio">local/repo</span>
-      <span class="access-badge" id="access-badge" title="">…</span>
+      <span class="repo-name" id="repo-name" title="">Mis repos</span>
+      <span class="access-badge" id="access-badge">—</span>
       <div class="spacer"></div>
       <span class="status" id="status">cargando…</span>
-      <button type="button" id="btn-sync" title="Sync">Sync</button>
-      <button type="button" id="btn-commit" class="primary write-only" title="Commit (solo owner)">Commit</button>
-      <button type="button" id="btn-export" title="Export">Export</button>
+      <button type="button" id="btn-home" title="Mis repositorios">Inicio</button>
+      <button type="button" id="btn-open-link" title="Abrir enlace de repo">Abrir enlace</button>
+      <button type="button" id="btn-share" class="write-only" title="Compartir enlace de este repo" style="display:none">Compartir</button>
+      <button type="button" id="btn-clone" class="guest-only" title="Clonar a mis repos" style="display:none">Clonar</button>
+      <button type="button" id="btn-sync" title="Sync" style="display:none">Sync</button>
+      <button type="button" id="btn-commit" class="primary write-only" title="Commit" style="display:none">Commit</button>
+      <button type="button" id="btn-export" title="Export" style="display:none">Export</button>
     </header>
 
-    <nav class="tabs">
-      <div class="tab active" data-tab="code">Código</div>
-      <div class="tab" data-tab="issues">Issues <span class="badge" id="badge-issues">0</span></div>
-      <div class="tab" data-tab="prs">PRs <span class="badge" id="badge-prs">0</span></div>
-      <div class="tab" data-tab="log">Log</div>
-    </nav>
+    <!-- HOME: lista de mis repos -->
+    <div id="view-home" class="view active">
+      <div class="home-wrap">
+        <div class="home-header">
+          <h1>Tus repositorios</h1>
+          <div class="home-actions">
+            <button type="button" id="btn-new-repo" class="primary">Nuevo repositorio</button>
+            <button type="button" id="btn-open-link-home">Abrir enlace de otro usuario</button>
+          </div>
+        </div>
+        <p class="home-desc">
+          Cada usuario trabaja en <strong>sus</strong> repos. Comparte un <em>enlace personal</em>
+          para que otros entren en modo invitado, clonen y abran pull requests.
+        </p>
+        <div id="repo-list" class="repo-list">
+          <div class="empty"><h3>Sin repositorios</h3><p>Crea el primero</p></div>
+        </div>
+      </div>
+    </div>
 
-    <main>
-      <div class="panel active" id="panel-code">
-        <div class="sidebar">
-          <div class="sidebar-header">
-            <div class="sidebar-title">Archivos</div>
-            <div class="sidebar-actions">
-              <button type="button" id="btn-new-file" class="write-only" title="Nuevo archivo (solo owner)">+</button>
-              <button type="button" id="btn-import" class="write-only" title="Importar (solo owner)">↑</button>
-              <button type="button" id="btn-reset-repo" class="write-only" title="Reiniciar (solo owner)">↺</button>
+    <!-- REPO view -->
+    <div id="view-repo" class="view">
+      <nav class="tabs">
+        <div class="tab active" data-tab="code">Código</div>
+        <div class="tab" data-tab="issues">Issues <span class="badge" id="badge-issues">0</span></div>
+        <div class="tab" data-tab="prs">PRs <span class="badge" id="badge-prs">0</span></div>
+        <div class="tab" data-tab="log">Log</div>
+      </nav>
+
+      <main>
+        <div class="panel active" id="panel-code">
+          <div class="sidebar">
+            <div class="sidebar-header">
+              <div class="sidebar-title">Archivos</div>
+              <div class="sidebar-actions">
+                <button type="button" id="btn-new-file" class="write-only" title="Nuevo archivo">+</button>
+                <button type="button" id="btn-import" class="write-only" title="Importar">↑</button>
+                <button type="button" id="btn-reset-repo" class="write-only" title="Reiniciar">↺</button>
+              </div>
+            </div>
+            <input type="file" id="file-import" multiple style="display:none" />
+            <div class="file-tree" id="file-tree">
+              <div class="empty"><h3>Cargando…</h3></div>
             </div>
           </div>
-          <input type="file" id="file-import" multiple style="display:none" />
-          <div class="file-tree" id="file-tree">
-            <div class="empty"><h3>Cargando…</h3></div>
+          <div class="editor-area">
+            <div class="editor-toolbar">
+              <span class="path" id="editor-path">—</span>
+              <span class="ro-hint" id="ro-hint" style="display:none">Solo lectura</span>
+              <button type="button" id="btn-save" class="write-only" disabled>Guardar</button>
+            </div>
+            <div id="editor-container"></div>
           </div>
         </div>
-        <div class="editor-area">
-          <div class="editor-toolbar">
-            <span class="path" id="editor-path">—</span>
-            <span class="ro-hint" id="ro-hint" style="display:none">Solo lectura</span>
-            <button type="button" id="btn-save" class="write-only" disabled>Guardar</button>
-          </div>
-          <div id="editor-container"></div>
-        </div>
-      </div>
 
-      <div class="panel" id="panel-issues">
-        <div class="list-panel" id="issues-list">
-          <div class="list-header">
-            <h2>Issues</h2>
-            <button type="button" id="btn-new-issue" title="Cualquiera puede abrir issues">Nuevo Issue</button>
+        <div class="panel" id="panel-issues">
+          <div class="list-panel" id="issues-list">
+            <div class="list-header">
+              <h2>Issues</h2>
+              <button type="button" id="btn-new-issue">Nuevo Issue</button>
+            </div>
+            <div id="issues-container"></div>
           </div>
-          <div id="issues-container"></div>
+          <div class="detail-view" id="issue-detail" style="display:none"></div>
         </div>
-        <div class="detail-view" id="issue-detail" style="display:none"></div>
-      </div>
 
-      <div class="panel" id="panel-prs">
-        <div class="list-panel" id="prs-list">
-          <div class="list-header">
-            <h2>Pull Requests</h2>
-            <button type="button" id="btn-new-pr" title="Proponer cambios">Nuevo PR</button>
+        <div class="panel" id="panel-prs">
+          <div class="list-panel" id="prs-list">
+            <div class="list-header">
+              <h2>Pull Requests</h2>
+              <button type="button" id="btn-new-pr">Nuevo PR</button>
+            </div>
+            <div id="prs-container"></div>
           </div>
-          <div id="prs-container"></div>
+          <div class="detail-view" id="pr-detail" style="display:none"></div>
         </div>
-        <div class="detail-view" id="pr-detail" style="display:none"></div>
-      </div>
 
-      <div class="panel" id="panel-log">
-        <div id="log-container"></div>
-      </div>
-    </main>
+        <div class="panel" id="panel-log">
+          <div id="log-container"></div>
+        </div>
+      </main>
+    </div>
   </div>
 
   <div class="modal-overlay" id="modal" style="display:none">
