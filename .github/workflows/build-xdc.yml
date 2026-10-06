@@ -1,0 +1,52 @@
+name: Build GitXDC.xdc
+
+on:
+  workflow_dispatch:   # botón "Run workflow" en la pestaña Actions
+  push:
+    branches: [main]
+    paths:
+      - "**.js"
+      - "**.html"
+      - "**.css"
+      - "manifest.toml"
+      - "vendor.sh"
+      - "build.sh"
+      - ".github/workflows/build-xdc.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Make scripts executable
+        run: chmod +x vendor.sh build.sh
+
+      - name: Vendor dependencies (esbuild)
+        run: ./vendor.sh
+
+      - name: Build .xdc
+        run: ./build.sh
+
+      - name: Verify artifact
+        run: |
+          ls -lh GitXDC.xdc
+          file GitXDC.xdc || true
+          unzip -l GitXDC.xdc | head -30
+
+      - name: Upload GitXDC.xdc
+        uses: actions/upload-artifact@v4
+        with:
+          name: GitXDC.xdc
+          path: GitXDC.xdc
+          if-no-files-found: error
+          retention-days: 30
