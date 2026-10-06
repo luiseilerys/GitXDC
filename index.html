@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>GitXDC</title>
   <link rel="stylesheet" href="style.css" />
-  <script src="webxdc.js"></script>
 </head>
 <body>
   <div id="app">
@@ -16,12 +15,12 @@
         </svg>
         <span>GitXDC</span>
       </div>
-      <span class="repo-name" id="repo-name" title="Repositorio local (IndexedDB)">local/repo</span>
+      <span class="repo-name" id="repo-name" title="Repositorio local">local/repo</span>
       <div class="spacer"></div>
-      <span class="status" id="status">inicializando…</span>
-      <button type="button" id="btn-sync" title="Sincronizar packfiles P2P">Sync</button>
-      <button type="button" id="btn-commit" class="primary" title="Crear commit">Commit</button>
-      <button type="button" id="btn-export" title="Exportar .xdc">Export</button>
+      <span class="status" id="status">cargando…</span>
+      <button type="button" id="btn-sync" title="Sync">Sync</button>
+      <button type="button" id="btn-commit" class="primary" title="Commit">Commit</button>
+      <button type="button" id="btn-export" title="Export">Export</button>
     </header>
 
     <nav class="tabs">
@@ -38,18 +37,18 @@
             <div class="sidebar-title">Archivos</div>
             <div class="sidebar-actions">
               <button type="button" id="btn-new-file" title="Nuevo archivo">+</button>
-              <button type="button" id="btn-import" title="Importar archivos">↑</button>
-              <button type="button" id="btn-reset-repo" title="Reiniciar repositorio">↺</button>
+              <button type="button" id="btn-import" title="Importar">↑</button>
+              <button type="button" id="btn-reset-repo" title="Reiniciar repo">↺</button>
             </div>
           </div>
           <input type="file" id="file-import" multiple style="display:none" />
           <div class="file-tree" id="file-tree">
-            <div class="empty"><h3>Sin archivos</h3><p>Pulsa + o Importar</p></div>
+            <div class="empty"><h3>Cargando…</h3></div>
           </div>
         </div>
         <div class="editor-area">
           <div class="editor-toolbar">
-            <span class="path" id="editor-path">Selecciona un archivo</span>
+            <span class="path" id="editor-path">—</span>
             <button type="button" id="btn-save" disabled>Guardar</button>
           </div>
           <div id="editor-container"></div>
@@ -85,14 +84,20 @@
   </div>
 
   <div class="modal-overlay" id="modal" style="display:none">
-    <div class="modal" role="dialog" aria-modal="true">
-      <span class="close" id="modal-close" title="Cerrar">×</span>
+    <div class="modal" role="dialog">
+      <span class="close" id="modal-close">×</span>
       <h3 id="modal-title">Título</h3>
       <div id="modal-body"></div>
       <div class="form-actions" id="modal-actions"></div>
     </div>
   </div>
 
+  <!-- Polyfill solo si el host no inyectó webxdc (navegador local) -->
+  <script>
+    if (!window.webxdc) {
+      document.write('<script src="webxdc.js"><\/script>');
+    }
+  </script>
   <script src="vendor/isomorphic-git.js"></script>
   <script src="vendor/lightning-fs.js"></script>
   <script src="vendor/yjs.js"></script>
