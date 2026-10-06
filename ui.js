@@ -46,7 +46,7 @@
       "<p>Este repo pertenece a <strong>" +
         (owner.name || owner.addr || "otro usuario") +
         "</strong>.</p>" +
-        "<p>Puedes <em>ver</em> el código, abrir <em>issues</em> y proponer <em>PRs</em> — como un repo público en GitHub.</p>",
+        "<p>Puedes ver el codigo. Los PR se abren desde un <em>clone</em>.</p>",
       [{ label: "Entendido", primary: true }]
     );
   }
@@ -140,9 +140,7 @@
       el("btn-reset-repo").onclick = requireWrite(function () {
         openModal(
           "Reiniciar repositorio",
-          '<p style="color:var(--text-muted);margin-bottom:12px">' +
-            "Se recrea el repo local. Solo el owner puede hacerlo." +
-            "</p>",
+          '<p style="color:var(--text-muted);margin-bottom:12px">Solo el owner.</p>',
           [
             { label: "Cancelar" },
             {
@@ -157,13 +155,12 @@
       });
     }
 
-    // Issues y PRs: cualquiera (como GitHub público)
     if (el("btn-new-issue")) {
       el("btn-new-issue").onclick = function () {
         openModal(
           "Nuevo issue",
-          '<div class="form-row"><label>Título</label><input type="text" id="modal-issue-title" /></div>' +
-            '<div class="form-row"><label>Descripción</label><textarea id="modal-issue-body"></textarea></div>',
+          '<div class="form-row"><label>Titulo</label><input type="text" id="modal-issue-title" /></div>' +
+            '<div class="form-row"><label>Descripcion</label><textarea id="modal-issue-body"></textarea></div>',
           [
             { label: "Cancelar" },
             {
@@ -184,24 +181,20 @@
       el("btn-new-pr").onclick = function () {
         openModal(
           "Nuevo pull request",
-          '<div class="form-row"><label>Título</label><input type="text" id="modal-pr-title" /></div>' +
-            '<div class="form-row"><label>Head</label><input type="text" id="modal-pr-head" value="feature" /></div>' +
-            '<div class="form-row"><label>Base</label><input type="text" id="modal-pr-base" value="main" /></div>' +
-            '<div class="form-row"><label>Descripción</label><textarea id="modal-pr-body"></textarea></div>',
+          '<p style="color:var(--text-muted);font-size:12px;margin-bottom:8px">' +
+            "Como en GitHub: solo desde un <strong>repo clonado</strong>. " +
+            "Se envia el diff al dueno original; solo el puede hacer merge.</p>" +
+            '<div class="form-row"><label>Titulo</label><input type="text" id="modal-pr-title" /></div>' +
+            '<div class="form-row"><label>Descripcion</label><textarea id="modal-pr-body"></textarea></div>',
           [
             { label: "Cancelar" },
             {
-              label: "Crear",
+              label: "Abrir PR",
               primary: true,
-              onClick: function () {
+              onClick: async function () {
                 var title = (el("modal-pr-title").value || "").trim();
                 if (!title) return;
-                app.createPR(
-                  title,
-                  el("modal-pr-head").value || "feature",
-                  el("modal-pr-base").value || "main",
-                  el("modal-pr-body").value || ""
-                );
+                await app.createPR(title, "clone", "main", el("modal-pr-body").value || "");
               }
             }
           ]
