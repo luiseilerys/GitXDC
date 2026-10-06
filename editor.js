@@ -1,133 +1,84 @@
 /**
- * editor.js — Wrapper de CodeMirror 6 para GitXDC
- * Comentarios en español.
+ * editor.js — CodeMirror 6 wrapper (tolerante si falta el vendor)
  */
-
 (function () {
   "use strict";
 
-  /** Instancia del editor */
-  let view = null;
+  var view = null;
+  var plainTa = null;
 
-  /** Extensiones de lenguaje por extensión de archivo */
-  const langMap = {
-    js: () => window.CodeMirrorBundle.javascript(),
-    mjs: () => window.CodeMirrorBundle.javascript(),
-    cjs: () => window.CodeMirrorBundle.javascript(),
-    ts: () => window.CodeMirrorBundle.javascript({ typescript: true }),
-    jsx: () => window.CodeMirrorBundle.javascript({ jsx: true }),
-    tsx: () => window.CodeMirrorBundle.javascript({ jsx: true, typescript: true }),
-    json: () => window.CodeMirrorBundle.json(),
-    md: () => window.CodeMirrorBundle.markdown(),
-    markdown: () => window.CodeMirrorBundle.markdown(),
-    html: () => window.CodeMirrorBundle.html(),
-    htm: () => window.CodeMirrorBundle.html(),
-    css: () => window.CodeMirrorBundle.css(),
-    scss: () => window.CodeMirrorBundle.css(),
-    toml: () => null,
-    txt: () => null
-  };
+  function hasCM() {
+    return !!(window.CodeMirrorBundle && window.CodeMirrorBundle.EditorView);
+  }
 
-  /**
-   * Obtiene la extensión de lenguaje para una ruta.
-   * @param {string} path
-   * @returns {import("@codemirror/language").LanguageSupport|null}
-   */
   function getLanguage(path) {
-    const ext = (path.split(".").pop() || "").toLowerCase();
-    const factory = langMap[ext];
-    return factory ? factory() : null;
+    if (!hasCM()) return null;
+    var ext = (path.split(".").pop() || "").toLowerCase();
+    var B = window.CodeMirrorBundle;
+    try {
+      if (ext === "js" || ext === "mjs" || ext === "cjs") return B.javascript();
+      if (ext === "json") return B.json();
+      if (ext === "md" || ext === "markdown") return B.markdown();
+      if (ext === "html" || ext === "htm") return B.html();
+      if (ext === "css") return B.css();
+    } catch (_) {}
+    return null;
   }
 
-  /**
-   * Inicializa el editor en el contenedor.
-   * @param {HTMLElement} container
-   * @param {object} opts - { onChange?: (doc: string) => void }
-   */
-  function init(container, opts = {}) {
-    const { EditorView, EditorState, basicSetup, oneDark } = window.CodeMirrorBundle;
-
-    const extensions = [
-      basicSetup,
-      oneDark,
-      EditorView.updateListener.of((update) => {
-        if (update.docChanged && opts.onChange) {
-          opts.onChange(update.state.doc.toString());
-        }
-      })
-    ];
-
-    const state = EditorState.create({
-      doc: "",
-      extensions
-    });
-
-    view = new EditorView({
-      state,
-      parent: container
-    });
+  function init(container) {
+    if (!container) return;
+    if (hasCM()) {
+      var B = window.CodeMirrorBundle;
+      var extensions = [B.basicSetup, B.oneDark];
+      view = new B.EditorView({
+        state: B.EditorState.create({ doc: "", extensions: extensions }),
+        parent: container
+      });
+    } else {
+      // Fallback textarea si no hay CodeMirror
+      plainTa = document.createElement("textarea");
+      plainTa.style.cssText = "width:100%;height:100%;background:#0d1117;color:#e6edf3;border:0;padding:12px;font-family:monospace;font-size:13px;resize:none;";
+      container.appendChild(plainTa);
+      console.warn("[GitXDC] CodeMirror no disponible — textarea fallback");
+    }
   }
 
-  /**
-   * Carga contenido en el editor y aplica el lenguaje de la ruta.
-   * @param {string} content
-   * @param {string} path
-   */
   function setContent(content, path) {
-    if (!view) return;
-    const { EditorState, basicSetup, oneDark } = window.CodeMirrorBundle;
-    const lang = getLanguage(path);
-    const extensions = [basicSetup, oneDark];
-    if (lang) extensions.push(lang);
-
-    // Mantener el listener de cambio si existe
-    const currentListener = view.state.facet(window.CodeMirrorBundle.EditorView.updateListener);
-    // Reconstruir estado
-    view.setState(
-      EditorState.create({
-        doc: content || "",
-        extensions: [
-          ...extensions,
-          window.CodeMirrorBundle.EditorView.updateListener.of((update) => {
-            if (update.docChanged && window.__editor_onChange) {
-              window.__editor_onChange(update.state.doc.toString());
-            }
-          })
-        ]
-      })
-    );
+    content = content || "";
+    if (view && hasCM()) {
+      var B = window.CodeMirrorBundle;
+      var extensions = [B.basicSetup, B.oneDark];
+      var lang = getLanguage(path || "");
+      if (lang) extensions.push(lang);
+      extensions.push(
+        B.EditorView.updateListener.of(function (update) {
+          if (update.docChanged && window.__editor_onChange) {
+            window.__editor_onChange(update.state.doc.toString());
+          }
+        })
+      );
+      view.setState(B.EditorState.create({ doc: content, extensions: extensions }));
+    } else if (plainTa) {
+      plainTa.value = content;
+      plainTa.oninput = function () {
+        if (window.__editor_onChange) window.__editor_onChange(plainTa.value);
+      };
+    }
   }
 
-  /**
-   * Devuelve el contenido actual del editor.
-   * @returns {string}
-   */
   function getContent() {
-    if (!view) return "";
-    return view.state.doc.toString();
+    if (view) return view.state.doc.toString();
+    if (plainTa) return plainTa.value;
+    return "";
   }
 
-  /**
-   * Limpia el editor.
-   */
   function clear() {
     setContent("", "");
   }
 
-  /**
-   * Registra callback de cambio.
-   * @param {(doc: string) => void} cb
-   */
   function onChange(cb) {
     window.__editor_onChange = cb;
   }
 
-  // Exportar API global
-  window.GitXDCEditor = {
-    init,
-    setContent,
-    getContent,
-    clear,
-    onChange
-  };
+  window.GitXDCEditor = { init: init, setContent: setContent, getContent: getContent, clear: clear, onChange: onChange };
 })();
