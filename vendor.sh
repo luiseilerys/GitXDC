@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # vendor.sh — Descarga y empaqueta dependencias con esbuild (versiones fijadas)
 # Sin CDN en runtime. Todo queda en vendor/
+# Polyfills de builtins de Node para isomorphic-git en el navegador.
 
 set -euo pipefail
 
@@ -8,11 +9,11 @@ VENDOR_DIR="vendor"
 mkdir -p "$VENDOR_DIR"
 
 echo "==> Instalando dependencias temporales…"
-# Usamos un package.json temporal con versiones exactas
 cat > package.json << 'EOF'
 {
   "name": "gitxdc-vendor",
   "private": true,
+  "type": "module",
   "dependencies": {
     "isomorphic-git": "1.27.1",
     "@isomorphic-git/lightning-fs": "4.6.0",
@@ -26,43 +27,79 @@ cat > package.json << 'EOF'
     "@codemirror/theme-one-dark": "6.1.2",
     "@codemirror/view": "6.28.0",
     "@codemirror/state": "6.4.1",
-    "esbuild": "0.23.0"
+    "esbuild": "0.23.0",
+    "esbuild-plugin-polyfill-node": "0.3.0",
+    "buffer": "6.0.3",
+    "path-browserify": "1.0.1",
+    "events": "3.3.0",
+    "stream-browserify": "3.0.0",
+    "process": "0.11.10",
+    "util": "0.12.5"
   }
 }
 EOF
 
 npm install --silent
 
-echo "==> Bundling isomorphic-git…"
-npx esbuild node_modules/isomorphic-git/index.js \
-  --bundle \
-  --format=iife \
-  --global-name=git \
-  --outfile="$VENDOR_DIR/isomorphic-git.js" \
-  --platform=browser \
-  --target=es2020
+echo "==> Creando script de build esbuild con polyfills…"
+cat > /tmp/vendor-build.mjs << 'BUILDEOF'
+import * as esbuild from "esbuild";
+import { polyfillNode } from "esbuild-plugin-polyfill-node";
+import { writeFileSync } from "fs";
 
-echo "==> Bundling lightning-fs…"
-npx esbuild node_modules/@isomorphic-git/lightning-fs/src/index.js \
-  --bundle \
-  --format=iife \
-  --global-name=LightningFS \
-  --outfile="$VENDOR_DIR/lightning-fs.js" \
-  --platform=browser \
-  --target=es2020
+const common = {
+  bundle: true,
+  format: "iife",
+  platform: "browser",
+  target: "es2020",
+  logLevel: "info",
+};
 
-echo "==> Bundling yjs…"
-npx esbuild node_modules/yjs/src/index.js \
-  --bundle \
-  --format=iife \
-  --global-name=Y \
-  --outfile="$VENDOR_DIR/yjs.js" \
-  --platform=browser \
-  --target=es2020
+// isomorphic-git necesita polyfills de Node (buffer, path, stream, process…)
+await esbuild.build({
+  ...common,
+  entryPoints: ["node_modules/isomorphic-git/index.js"],
+  outfile: "vendor/isomorphic-git.js",
+  globalName: "git",
+  plugins: [
+    polyfillNode({
+      globals: {
+        process: true,
+        Buffer: true,
+      },
+    }),
+  ],
+  define: {
+    global: "globalThis",
+  },
+});
 
-echo "==> Bundling CodeMirror 6 + lenguajes + tema…"
-# Punto de entrada temporal que re-exporta lo necesario
-cat > /tmp/cm-entry.js << 'CMEOF'
+// lightning-fs
+await esbuild.build({
+  ...common,
+  entryPoints: ["node_modules/@isomorphic-git/lightning-fs/src/index.js"],
+  outfile: "vendor/lightning-fs.js",
+  globalName: "LightningFS",
+  plugins: [
+    polyfillNode({
+      globals: { process: true, Buffer: true },
+    }),
+  ],
+  define: { global: "globalThis" },
+});
+
+// yjs (sin polyfills Node)
+await esbuild.build({
+  ...common,
+  entryPoints: ["node_modules/yjs/src/index.js"],
+  outfile: "vendor/yjs.js",
+  globalName: "Y",
+});
+
+// CodeMirror 6 + lenguajes + tema
+writeFileSync(
+  "/tmp/cm-entry.js",
+  `
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -83,17 +120,23 @@ window.CodeMirrorBundle = {
   html,
   css
 };
-CMEOF
+`
+);
 
-npx esbuild /tmp/cm-entry.js \
-  --bundle \
-  --format=iife \
-  --outfile="$VENDOR_DIR/codemirror.js" \
-  --platform=browser \
-  --target=es2020
+await esbuild.build({
+  ...common,
+  entryPoints: ["/tmp/cm-entry.js"],
+  outfile: "vendor/codemirror.js",
+});
+
+console.log("Bundles generados correctamente.");
+BUILDEOF
+
+echo "==> Ejecutando esbuild…"
+node /tmp/vendor-build.mjs
 
 echo "==> Limpiando…"
-rm -rf node_modules package.json package-lock.json /tmp/cm-entry.js
+rm -rf node_modules package.json package-lock.json /tmp/cm-entry.js /tmp/vendor-build.mjs
 
 echo "==> Listo. Bundles en $VENDOR_DIR/:"
 ls -lh "$VENDOR_DIR/"
