@@ -1,5 +1,5 @@
 /**
- * app.js — GitXDC core (boot tolerante, no se cuelga)
+ * app.js — GitXDC core + modo Owner / Solo lectura (estilo GitHub)
  */
 (function () {
   "use strict";
@@ -18,8 +18,13 @@
   var fs = null, pfs = null, dir = "/repo";
   var currentFile = null, dirty = false;
   var issues = [], prs = [];
-  var ydoc = null, yrefs = null, realtime = null;
+  var realtime = null;
   var myAddr = "", myName = "";
+
+  // Owner del repo en este chat (como GitHub owner)
+  var ownerAddr = null;
+  var ownerName = null;
+  var ownerClaimed = false;
 
   function log(msg, level) {
     level = level || "info";
@@ -59,6 +64,76 @@
     if (el) {
       el.textContent = text;
       el.className = "status" + (online ? " online" : "");
+    }
+  }
+
+  function isOwner() {
+    if (!ownerAddr) return true;
+    return ownerAddr === myAddr;
+  }
+
+  function canWrite() {
+    return isOwner();
+  }
+
+  function applyAccessMode() {
+    var write = canWrite();
+    try {
+      document.body.classList.toggle("is-guest", !write);
+    } catch (_) {}
+
+    var badge = document.getElementById("access-badge");
+    if (badge) {
+      if (write) {
+        badge.textContent = "Owner";
+        badge.className = "access-badge owner";
+        badge.title = "Eres el dueño: puedes editar código y hacer commit";
+      } else {
+        badge.textContent = "Solo lectura";
+        badge.className = "access-badge guest";
+        badge.title =
+          "Invitado — owner: " +
+          (ownerName || ownerAddr || "?") +
+          ". Puedes ver código, abrir issues y PRs.";
+      }
+    }
+
+    var hint = document.getElementById("ro-hint");
+    if (hint) hint.style.display = write ? "none" : "inline";
+
+    var rn = document.getElementById("repo-name");
+    if (rn) {
+      var who = ownerName || (write ? myName : "user") || "local";
+      rn.textContent = who + "/repo";
+      rn.title = write
+        ? "Tu repositorio (owner)"
+        : "Repo de " + (ownerName || ownerAddr) + " — solo lectura";
+    }
+
+    log(
+      write
+        ? "Modo Owner (escritura)"
+        : "Modo invitado (solo lectura) — owner " + (ownerName || ownerAddr),
+      write ? "info" : "warn"
+    );
+  }
+
+  function setOwner(addr, name, fromNetwork) {
+    if (!addr) return;
+    // Primera REPO_META gana (estilo repo ya creado)
+    if (ownerAddr && ownerAddr !== addr) {
+      log("Owner ya fijado: " + (ownerName || ownerAddr) + " — ignorando " + addr, "warn");
+      return;
+    }
+    ownerAddr = addr;
+    ownerName = name || addr;
+    applyAccessMode();
+    if (!fromNetwork && !ownerClaimed) {
+      ownerClaimed = true;
+      sendAppUpdate(
+        { type: "REPO_META", ownerAddr: ownerAddr, ownerName: ownerName },
+        "Owner: " + ownerName
+      );
     }
   }
 
@@ -106,8 +181,6 @@
       var files = await pfs.readdir(dir + "/.git");
       if (files && files.length) {
         log("Repo existente");
-        var rn = document.getElementById("repo-name");
-        if (rn) rn.textContent = "local/repo";
         await refreshTree();
         return;
       }
@@ -123,8 +196,6 @@
       author: { name: myName || "GitXDC", email: myAddr || "gitxdc@local" }
     });
     log("Repo nuevo " + String(sha).slice(0, 7));
-    var rn2 = document.getElementById("repo-name");
-    if (rn2) rn2.textContent = "local/repo";
     await refreshTree();
   }
 
@@ -141,12 +212,33 @@
   function handleAppUpdate(update) {
     var p = update && update.payload;
     if (!p || typeof p !== "object") return;
-    if (p.type === "ISSUE_CREATE") {
-      issues.push(p.issue);
-      renderIssues();
-    } else if (p.type === "PR_CREATE") {
-      prs.push(p.pr);
-      renderPRs();
+
+    if (p.type === "REPO_META" && p.ownerAddr) {
+      setOwner(p.ownerAddr, p.ownerName, true);
+      return;
+    }
+    if (p.type === "ISSUE_CREATE" && p.issue) {
+      if (!issues.some(function (i) { return i.id === p.issue.id; })) {
+        issues.push(p.issue);
+        renderIssues();
+      }
+    } else if (p.type === "PR_CREATE" && p.pr) {
+      if (!prs.some(function (x) { return x.id === p.pr.id; })) {
+        prs.push(p.pr);
+        renderPRs();
+      }
+    } else if (p.type === "PR_MERGE") {
+      var pr = prs.find(function (x) { return x.id === p.prId; });
+      if (pr) {
+        pr.state = "merged";
+        renderPRs();
+      }
+    } else if (p.type === "PR_CLOSE") {
+      var pr2 = prs.find(function (x) { return x.id === p.prId; });
+      if (pr2) {
+        pr2.state = "closed";
+        renderPRs();
+      }
     }
   }
 
@@ -184,7 +276,9 @@
     var files = await listFiles();
     if (!files.length) {
       tree.innerHTML =
-        '<div class="empty"><h3>Sin archivos</h3><p>Pulsa + o Importar</p></div>';
+        '<div class="empty"><h3>Sin archivos</h3><p>' +
+        (canWrite() ? "Pulsa + o Importar" : "Repo vacío (solo lectura)") +
+        "</p></div>";
       return;
     }
     files.forEach(function (f) {
@@ -205,7 +299,7 @@
 
   async function openFile(path) {
     if (!pfs) return;
-    if (dirty) {
+    if (dirty && canWrite()) {
       log("Cambios sin guardar descartados", "warn");
       dirty = false;
     }
@@ -213,18 +307,33 @@
       var content = await pfs.readFile(dir + "/" + path, "utf8");
       currentFile = path;
       document.getElementById("editor-path").textContent = path;
-      document.getElementById("btn-save").disabled = true;
+      var saveBtn = document.getElementById("btn-save");
+      if (saveBtn) saveBtn.disabled = true;
       if (window.GitXDCEditor) window.GitXDCEditor.setContent(content, path);
       document.querySelectorAll(".tree-item").forEach(function (el) {
         el.classList.toggle("active", el.dataset.path === path);
       });
-      log("Abierto: " + path);
+      log("Abierto: " + path + (canWrite() ? "" : " (solo lectura)"));
     } catch (e) {
       log("Error: " + e.message, "error");
     }
   }
 
+  function denyWrite(action) {
+    log("Solo lectura: no puedes " + action + " (no eres el owner)", "warn");
+    if (window.GitXDCUI && window.GitXDCUI.openModal) {
+      window.GitXDCUI.openModal(
+        "Solo lectura",
+        "<p>Este repo pertenece a <strong>" +
+          escapeHtml(ownerName || ownerAddr || "?") +
+          "</strong>.</p><p>Como invitado puedes ver el código, abrir issues y proponer PRs — como en un repo público de GitHub.</p>",
+        [{ label: "Entendido", primary: true }]
+      );
+    }
+  }
+
   async function saveFile() {
+    if (!canWrite()) return denyWrite("guardar");
     if (!currentFile || !pfs) return;
     var content = window.GitXDCEditor ? window.GitXDCEditor.getContent() : "";
     await pfs.writeFile(dir + "/" + currentFile, content, "utf8");
@@ -241,6 +350,7 @@
   }
 
   async function createFileAt(name, content) {
+    if (!canWrite()) return denyWrite("crear archivos");
     if (!pfs) {
       log("FS no listo", "error");
       return;
@@ -268,6 +378,7 @@
   }
 
   async function doCommit(message) {
+    if (!canWrite()) return denyWrite("hacer commit");
     if (!git) {
       log("git no disponible", "error");
       return;
@@ -287,6 +398,7 @@
   }
 
   async function importFiles(fileList) {
+    if (!canWrite()) return denyWrite("importar");
     if (!pfs || !fileList || !fileList.length) return;
     var n = 0, i, file, name, text;
     for (i = 0; i < fileList.length; i++) {
@@ -311,6 +423,7 @@
   }
 
   async function resetRepo() {
+    if (!canWrite()) return denyWrite("reiniciar el repo");
     if (!pfs) return;
     try {
       var names = await pfs.readdir(dir), i, name;
@@ -343,7 +456,6 @@
     document.getElementById("editor-path").textContent = "-";
     document.getElementById("btn-save").disabled = true;
     if (window.GitXDCEditor) window.GitXDCEditor.clear();
-    document.getElementById("repo-name").textContent = "local/repo";
     await refreshTree();
     setStatus("repo nuevo", true);
   }
@@ -354,6 +466,7 @@
       title: title,
       body: body || "",
       author: myName || "anon",
+      authorAddr: myAddr,
       state: "open",
       comments: [],
       created: new Date().toISOString()
@@ -371,6 +484,7 @@
       base: base || "main",
       body: body || "",
       author: myName || "anon",
+      authorAddr: myAddr,
       state: "open",
       created: new Date().toISOString()
     };
@@ -433,6 +547,8 @@
           escapeHtml(p.head) +
           " → " +
           escapeHtml(p.base) +
+          " · " +
+          escapeHtml(p.author || "") +
           "</div></div>"
         );
       })
@@ -445,6 +561,12 @@
       if (!git) throw new Error("sin git");
       var head = await git.resolveRef({ fs: fs, dir: dir, ref: "HEAD" });
       log("HEAD " + String(head).slice(0, 7), "sync");
+      if (canWrite() && ownerAddr) {
+        sendAppUpdate(
+          { type: "REPO_META", ownerAddr: ownerAddr, ownerName: ownerName },
+          "Owner broadcast"
+        );
+      }
       setStatus("sync ok", true);
     } catch (e) {
       log("Sync: " + e.message, "error");
@@ -461,7 +583,13 @@
         if (!files[i].isDir) parts.push(files[i].path);
       }
       if (window.webxdc && window.webxdc.sendToChat) {
-        await window.webxdc.sendToChat({ text: "GitXDC — " + parts.join(", ") });
+        await window.webxdc.sendToChat({
+          text:
+            "GitXDC " +
+            (ownerName || "local") +
+            "/repo — " +
+            parts.join(", ")
+        });
       }
       setStatus("exportado");
     } catch (e) {
@@ -513,7 +641,12 @@
       importFiles: importFiles,
       resetRepo: resetRepo,
       createIssue: createIssue,
-      createPR: createPR
+      createPR: createPR,
+      canWrite: canWrite,
+      isOwner: isOwner,
+      getOwner: function () {
+        return { addr: ownerAddr, name: ownerName };
+      }
     };
     if (window.GitXDCUI && window.GitXDCUI.wire) {
       try {
@@ -533,6 +666,7 @@
     wireAppApi();
     renderIssues();
     renderPRs();
+    applyAccessMode();
   }
 
   async function boot() {
@@ -553,7 +687,6 @@
     if (!window.webxdc) missing.push("webxdc");
     if (!git) missing.push("git");
     if (!LightningFS) missing.push("LightningFS");
-    if (!Y) missing.push("Yjs");
     if (!window.GitXDCEditor) missing.push("editor");
     if (!window.GitXDCUI) missing.push("ui");
     if (missing.length) log("Opcional ausente: " + missing.join(", "), "warn");
@@ -561,10 +694,11 @@
     try {
       myAddr = (window.webxdc && window.webxdc.selfAddr) || "local";
       myName = (window.webxdc && window.webxdc.selfName) || "User";
-      log("Usuario " + myName);
+      log("Usuario " + myName + " (" + myAddr + ")");
 
       if (window.webxdc && window.webxdc.setUpdateListener) {
         try {
+          // serial 0: recibe historial → puede traer REPO_META del owner
           window.webxdc.setUpdateListener(handleAppUpdate, 0);
         } catch (e) {
           log("setUpdateListener: " + e.message, "warn");
@@ -578,6 +712,16 @@
       } catch (e) {
         log("Realtime: " + e.message, "warn");
       }
+
+      // Esperar un poco a updates históricos; si no hay owner, reclamamos
+      setTimeout(function () {
+        if (!ownerAddr) {
+          setOwner(myAddr, myName, false);
+          log("Reclamado ownership (primer participante / sin REPO_META previo)");
+        } else {
+          applyAccessMode();
+        }
+      }, 400);
 
       if (!LightningFS) {
         setStatus("sin FS (vendor)");
@@ -603,6 +747,7 @@
         if (window.GitXDCEditor && document.getElementById("editor-container")) {
           window.GitXDCEditor.init(document.getElementById("editor-container"));
           window.GitXDCEditor.onChange(function () {
+            if (!canWrite()) return;
             dirty = true;
             var b = document.getElementById("btn-save");
             if (b) b.disabled = false;
@@ -612,6 +757,7 @@
         log("Editor: " + e.message, "warn");
       }
 
+      applyAccessMode();
       setStatus("listo", true);
       log("GitXDC listo");
     } catch (e) {
