@@ -1,0 +1,15 @@
+ICBmdW5jdGlvbiByZW5kZXJQUnMoKSB7CiAgICB2YXIgYyA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCJwcnMtbGlzdCIpOwogICAgaWYgKCFjKSByZXR1cm47CiAgICB2YXIgZmlsdGVyZWQgPSBwcnMuZmlsdGVyKGZ1bmN0aW9uIChwKSB7IHJldHVybiBwLnN0YXRlICE9PSAiY2xvc2VkIjt9KTsKICAgIGlmICghZmlsdGVyZWQubGVuZ3RoKSB7CiAgICAgIGMuaW5uZXJIVE1MID0gJzxkaXYgY2xhc3M9ImVtcHR5Ij48aDM+U2luIFBSczwvaDM+PHAgc3R5bGU9ImNvbG9yOnZhci(--text-muted)">Crea uno desde un clone.</p></div>';
+    return;
+  }
+  c.innerHTML = filtered.map(function (pr) {
+    var approvals = (pr.reviews || []).filter(function (r) { return r.state === "approved"; }).length;
+    return '<div class="pr-card" data-id="' + escapeHtml(pr.id) + '"><div class="title">' +
+      escapeHtml(pr.title) + ' <span class="state-' + escapeHtml(pr.state) + '">(' + escapeHtml(pr.state) + ")</span></div>" +
+      '<div class="meta">' + escapeHtml(pr.author || "") + " · " + escapeHtml(pr.head) + " → " + escapeHtml(pr.base) +
+      (approvals ? " · ✓ " + approvals + " approve" : "") + "</div></div>";
+  }).join("");
+  c.querySelectorAll(".pr-card").forEach(function (card) {
+    card.onclick = function () { showPrDetail(card.getAttribute("data-id")); };
+  });
+}
+
