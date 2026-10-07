@@ -1,31 +1,30 @@
-/** app.js — carga app-b64-0..50 (base64 de app-source completo) */
+/** app.js — carga app-src-a.js + app-src-b.js, concat y eval */
 (function () {
   "use strict";
-  var N = 51;
-  var parts = new Array(N);
+  var parts = ["", ""];
   var done = 0;
   function finish() {
     try {
-      var code = decodeURIComponent(escape(atob(parts.join(""))));
-      (0, eval)(code);
+      (0, eval)(parts.join(""));
     } catch (e) {
       console.error("[GitXDC] fallo carga app:", e);
       var s = document.getElementById("status");
       if (s) s.textContent = "error carga app";
     }
   }
-  function loadOne(i) {
+  function loadOne(i, name) {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", "app-b64-" + i + ".txt", true);
+    xhr.open("GET", name, true);
     xhr.onload = function () {
       if (xhr.status === 200 || xhr.status === 0) {
-        parts[i] = xhr.responseText.replace(/\s/g, "");
+        parts[i] = xhr.responseText;
         done++;
-        if (done === N) finish();
-      } else console.error("Falta app-b64-" + i + ".txt");
+        if (done === 2) finish();
+      } else console.error("Falta " + name);
     };
-    xhr.onerror = function () { console.error("Error app-b64-" + i); };
+    xhr.onerror = function () { console.error("Error " + name); };
     xhr.send();
   }
-  for (var i = 0; i < N; i++) loadOne(i);
+  loadOne(0, "app-src-a.js");
+  loadOne(1, "app-src-b.js");
 })();
