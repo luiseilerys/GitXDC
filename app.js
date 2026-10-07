@@ -1,44 +1,30 @@
-/** app.js — carga gzip+base64 de app-source */
+/** app.js — carga app-src-a.js + app-src-b.js y eval */
 (function () {
   "use strict";
-  var N = 5;
-  var parts = new Array(N);
+  var parts = ["", ""];
   var done = 0;
   function finish() {
     try {
-      var b64 = parts.join("");
-      var bin = atob(b64);
-      var bytes = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      if (typeof DecompressionStream !== "undefined") {
-        var ds = new DecompressionStream("gzip");
-        var blob = new Blob([bytes]);
-        var stream = blob.stream().pipeThrough(ds);
-        new Response(stream).text().then(function (code) {
-          (0, eval)(code);
-        }).catch(function (e) {
-          console.error("[GitXDC] gunzip:", e);
-        });
-      } else {
-        console.error("[GitXDC] DecompressionStream no disponible");
-      }
+      (0, eval)(parts[0] + parts[1]);
     } catch (e) {
-      console.error("[GitXDC] fallo carga:", e);
+      console.error("[GitXDC] fallo carga app:", e);
       var s = document.getElementById("status");
       if (s) s.textContent = "error carga app";
     }
   }
-  function loadOne(i) {
+  function loadOne(i, name) {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", "app-gz-" + i + ".txt", true);
+    xhr.open("GET", name, true);
     xhr.onload = function () {
       if (xhr.status === 200 || xhr.status === 0) {
-        parts[i] = xhr.responseText.replace(/\s/g, "");
+        parts[i] = xhr.responseText;
         done++;
-        if (done === N) finish();
-      }
+        if (done === 2) finish();
+      } else console.error("Falta " + name);
     };
+    xhr.onerror = function () { console.error("Error " + name); };
     xhr.send();
   }
-  for (var i = 0; i < N; i++) loadOne(i);
+  loadOne(0, "app-src-a.js");
+  loadOne(1, "app-src-b.js");
 })();
