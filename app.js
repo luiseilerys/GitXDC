@@ -1,35 +1,12 @@
-/** app.js — carga partes base64 y eval (app completa con branches/commits/reviews/tree) */
+/** app.js — carga app-source.js (fuente completa) */
 (function () {
   "use strict";
-  var N = 51;
-  var parts = new Array(N);
-  var done = 0;
-  function finish() {
-    try {
-      var code = decodeURIComponent(escape(atob(parts.join(""))));
-      (0, eval)(code);
-    } catch (e) {
-      console.error("[GitXDC] fallo carga app:", e);
-      var s = document.getElementById("status");
-      if (s) s.textContent = "error carga app";
-    }
-  }
-  function loadOne(i) {
-    var xhr = new XMLHttpRequest();
-    xhr.open("GET", "app-b64-" + i + ".txt", true);
-    xhr.onload = function () {
-      if (xhr.status === 200 || xhr.status === 0) {
-        parts[i] = xhr.responseText.replace(/\s/g, "");
-        done++;
-        if (done === N) finish();
-      } else {
-        console.error("Falta app-b64-" + i + ".txt");
-      }
-    };
-    xhr.onerror = function () {
-      console.error("Error cargando app-b64-" + i + ".txt");
-    };
-    xhr.send();
-  }
-  for (var i = 0; i < N; i++) loadOne(i);
+  var s = document.createElement("script");
+  s.src = "app-source.js";
+  s.onerror = function () {
+    console.error("[GitXDC] no se pudo cargar app-source.js");
+    var st = document.getElementById("status");
+    if (st) st.textContent = "error carga app";
+  };
+  document.head.appendChild(s);
 })();

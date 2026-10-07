@@ -9,8 +9,13 @@ TMPDIR=$(mktemp -d)
 echo "==> Copiando archivos al staging…"
 cp manifest.toml index.html style.css webxdc.js editor.js ui.js "$TMPDIR/"
 
-# Prefer base64 loader + chunks
-if ls app-b64-*.txt >/dev/null 2>&1; then
+if [[ -f app-source.js ]]; then
+  echo "==> Usando app-source.js (fuente completa)"
+  cp app-source.js "$TMPDIR/"
+  cat > "$TMPDIR/app.js" << 'LOADER'
+(function(){"use strict";var s=document.createElement("script");s.src="app-source.js";s.onerror=function(){console.error("[GitXDC] no app-source");var st=document.getElementById("status");if(st)st.textContent="error carga app";};document.head.appendChild(s);})();
+LOADER
+elif ls app-b64-*.txt >/dev/null 2>&1; then
   echo "==> Usando app.js (loader) + app-b64-*.txt"
   cp app.js "$TMPDIR/"
   cp app-b64-*.txt "$TMPDIR/"
