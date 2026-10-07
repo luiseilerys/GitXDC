@@ -174,7 +174,7 @@
             }
           ]
         );
-      };
+      });
     }
 
     if (el("btn-new-pr")) {
@@ -199,7 +199,29 @@
             }
           ]
         );
-      };
+      });
+    }
+
+    if (el("btn-new-branch")) {
+      el("btn-new-branch").onclick = requireWrite(function () {
+        openModal(
+          "Nueva rama",
+          '<div class="form-row"><label>Nombre de la rama</label>' +
+            '<input type="text" id="modal-branch-name" placeholder="feature/mi-cambio" /></div>',
+          [
+            { label: "Cancelar" },
+            {
+              label: "Crear y cambiar",
+              primary: true,
+              onClick: async function () {
+                var name = (el("modal-branch-name").value || "").trim();
+                if (!name) return;
+                await app.createBranch(name, true);
+              }
+            }
+          ]
+        );
+      });
     }
   }
 
