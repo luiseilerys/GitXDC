@@ -1,7 +1,8 @@
-/** app.js — carga app-src-a.js + app-src-b.js, concat y eval */
+/** app.js — carga 8 partes de app-source */
 (function () {
   "use strict";
-  var parts = ["", ""];
+  var N = 8;
+  var parts = new Array(N);
   var done = 0;
   function finish() {
     try {
@@ -12,19 +13,18 @@
       if (s) s.textContent = "error carga app";
     }
   }
-  function loadOne(i, name) {
+  function loadOne(i) {
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", name, true);
+    xhr.open("GET", "app-src-part-" + i + ".js", true);
     xhr.onload = function () {
       if (xhr.status === 200 || xhr.status === 0) {
         parts[i] = xhr.responseText;
         done++;
-        if (done === 2) finish();
-      } else console.error("Falta " + name);
+        if (done === N) finish();
+      } else console.error("Falta app-src-part-" + i + ".js");
     };
-    xhr.onerror = function () { console.error("Error " + name); };
+    xhr.onerror = function () { console.error("Error part " + i); };
     xhr.send();
   }
-  loadOne(0, "app-src-a.js");
-  loadOne(1, "app-src-b.js");
+  for (var i = 0; i < N; i++) loadOne(i);
 })();
