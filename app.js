@@ -1,7 +1,7 @@
-/** app.js — carga partes base64 y eval (app completa con PRs tipo GitHub) */
+/** app.js — carga partes base64 y eval (app completa con branches/commits/reviews/tree) */
 (function () {
   "use strict";
-  var N = 30;
+  var N = 51;
   var parts = new Array(N);
   var done = 0;
   function finish() {
