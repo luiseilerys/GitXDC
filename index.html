@@ -21,14 +21,13 @@
       <span class="status" id="status">cargando…</span>
       <button type="button" id="btn-home" title="Mis repositorios">Inicio</button>
       <button type="button" id="btn-open-link" title="Abrir enlace de repo">Abrir enlace</button>
-      <button type="button" id="btn-share" class="write-only" title="Compartir enlace de este repo" style="display:none">Compartir</button>
+      <button type="button" id="btn-share" class="write-only" title="Compartir enlace" style="display:none">Compartir</button>
       <button type="button" id="btn-clone" class="guest-only" title="Clonar a mis repos" style="display:none">Clonar</button>
       <button type="button" id="btn-sync" title="Sync" style="display:none">Sync</button>
       <button type="button" id="btn-commit" class="primary write-only" title="Commit" style="display:none">Commit</button>
       <button type="button" id="btn-export" title="Export" style="display:none">Export</button>
     </header>
 
-    <!-- HOME: lista de mis repos -->
     <div id="view-home" class="view active">
       <div class="home-wrap">
         <div class="home-header">
@@ -48,10 +47,10 @@
       </div>
     </div>
 
-    <!-- REPO view -->
     <div id="view-repo" class="view">
       <nav class="tabs">
         <div class="tab active" data-tab="code">Código</div>
+        <div class="tab" data-tab="commits">Commits</div>
         <div class="tab" data-tab="issues">Issues <span class="badge" id="badge-issues">0</span></div>
         <div class="tab" data-tab="prs">PRs <span class="badge" id="badge-prs">0</span></div>
         <div class="tab" data-tab="log">Log</div>
@@ -68,6 +67,10 @@
                 <button type="button" id="btn-reset-repo" class="write-only" title="Reiniciar">↺</button>
               </div>
             </div>
+            <div class="branch-bar write-only">
+              <select id="branch-select" title="Rama actual"></select>
+              <button type="button" id="btn-new-branch" title="Nueva rama">+</button>
+            </div>
             <input type="file" id="file-import" multiple style="display:none" />
             <div class="file-tree" id="file-tree">
               <div class="empty"><h3>Cargando…</h3></div>
@@ -81,6 +84,17 @@
             </div>
             <div id="editor-container"></div>
           </div>
+        </div>
+
+        <div class="panel" id="panel-commits">
+          <div class="list-panel" id="commits-list">
+            <div class="list-header">
+              <h2>Historial de commits</h2>
+              <button type="button" id="btn-refresh-commits">Actualizar</button>
+            </div>
+            <div id="commits-container"></div>
+          </div>
+          <div class="detail-view" id="commit-detail" style="display:none"></div>
         </div>
 
         <div class="panel" id="panel-issues">
